@@ -1333,11 +1333,18 @@ func AutoMigrate(db *sqlx.DB) error {
 		// PROFIT SHARING SETTINGS COLUMNS MIGRATION
 		// -------------------------------------------------------------
 		`ALTER TABLE profit_sharing_settings ADD COLUMN IF NOT EXISTS user_id VARCHAR(36)`,
+		`ALTER TABLE profit_sharing_settings ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36)`,
 		`ALTER TABLE profit_sharing_settings ADD COLUMN IF NOT EXISTS owner_percentage DECIMAL(5,2) DEFAULT 40`,
 		`ALTER TABLE profit_sharing_settings ADD COLUMN IF NOT EXISTS manager_percentage DECIMAL(5,2) DEFAULT 30`,
 		`ALTER TABLE profit_sharing_settings ADD COLUMN IF NOT EXISTS store_percentage DECIMAL(5,2) DEFAULT 30`,
 		`ALTER TABLE profit_sharing_settings ADD COLUMN IF NOT EXISTS owner_name VARCHAR(255) DEFAULT 'Owner'`,
 		`ALTER TABLE profit_sharing_settings ADD COLUMN IF NOT EXISTS manager_name VARCHAR(255) DEFAULT 'Pengelola'`,
+		`ALTER TABLE profit_sharing_settings ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE`,
+		`ALTER TABLE profit_sharing_settings ADD COLUMN IF NOT EXISTS period_type VARCHAR(20) DEFAULT 'monthly'`,
+		`ALTER TABLE profit_sharing_settings ADD COLUMN IF NOT EXISTS total_shares DECIMAL(5,2) DEFAULT 100`,
+		`ALTER TABLE profit_sharing_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`,
+		`ALTER TABLE profit_sharing_settings ALTER COLUMN tenant_id DROP NOT NULL`,
+		`ALTER TABLE profit_sharing_settings DROP CONSTRAINT IF EXISTS profit_sharing_settings_tenant_id_key`,
 		`CREATE INDEX IF NOT EXISTS idx_profit_sharing_settings_user ON profit_sharing_settings(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_profit_sharing_settings_tenant ON profit_sharing_settings(tenant_id)`,
 	}
