@@ -2,6 +2,7 @@ package finance
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -58,12 +59,12 @@ func (h *FinanceHandler) RegisterRoutes(r *gin.RouterGroup) {
 	ps := r.Group("/profit-sharing", middleware.AuthenticateToken())
 	{
 		ps.GET("/settings", h.GetProfitSharingSettings)
-		ps.PUT("/settings", middleware.RequireRole("admin"), h.UpdateProfitSharingSettings)
+		ps.PUT("/settings", middleware.RequireRole("admin", "owner", "manager", "super_admin"), h.UpdateProfitSharingSettings)
 		ps.GET("/calculate", h.CalculateProfitSharing)
 		ps.GET("/distributions", h.GetProfitDistributions)
-		ps.POST("/distributions", middleware.RequireRole("admin"), h.CreateProfitDistribution)
-		ps.PUT("/distributions/:id/payment", middleware.RequireRole("admin"), h.UpdateDistributionPayment)
-		ps.DELETE("/distributions/:id", middleware.RequireRole("admin"), h.DeleteProfitDistribution)
+		ps.POST("/distributions", middleware.RequireRole("admin", "owner", "manager", "super_admin"), h.CreateProfitDistribution)
+		ps.PUT("/distributions/:id/payment", middleware.RequireRole("admin", "owner", "manager", "super_admin"), h.UpdateDistributionPayment)
+		ps.DELETE("/distributions/:id", middleware.RequireRole("admin", "owner", "manager", "super_admin"), h.DeleteProfitDistribution)
 	}
 
 	// Reinvestment
@@ -717,13 +718,24 @@ func (h *FinanceHandler) GetProfitSharingSettings(c *gin.Context) {
 	tenantID := c.GetString("tenantId")
 
 	var s ProfitSharingSettings
-	err := database.DB.Get(&s, "SELECT * FROM profit_sharing_settings WHERE user_id = $1", tenantID)
+	err := database.DB.Get(&s, `
+		SELECT 
+			id, COALESCE(user_id, tenant_id, '') as user_id,
+			COALESCE(owner_percentage, 40) as owner_percentage,
+			COALESCE(manager_percentage, 30) as manager_percentage,
+			COALESCE(store_percentage, 30) as store_percentage,
+			COALESCE(owner_name, 'Owner') as owner_name,
+			COALESCE(manager_name, 'Pengelola') as manager_name
+		FROM profit_sharing_settings 
+		WHERE user_id = $1 OR tenant_id = $1
+		LIMIT 1
+	`, tenantID)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
-			"owner_percentage":   50,
+			"owner_percentage":   40,
 			"manager_percentage": 30,
-			"store_percentage":   20,
-			"owner_name":         "Pemilik",
+			"store_percentage":   30,
+			"owner_name":         "Owner",
 			"manager_name":       "Pengelola",
 		})
 		return
@@ -743,34 +755,49 @@ func (h *FinanceHandler) UpdateProfitSharingSettings(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.RespondValidationError(c, "Invalid payload")
+		utils.RespondValidationError(c, "Data pengaturan tidak valid")
 		return
 	}
 
 	total := req.OwnerPercentage + req.ManagerPercentage + req.StorePercentage
-	if total != 100 {
-		utils.RespondError(c, http.StatusBadRequest, "Total persentase bagi hasil harus 100%")
+	if math.Abs(total-100) > 0.01 {
+		utils.RespondError(c, http.StatusBadRequest, "Total persentase bagi hasil harus berjumlah 100%")
 		return
 	}
 
+	if req.OwnerName == "" {
+		req.OwnerName = "Owner"
+	}
+	if req.ManagerName == "" {
+		req.ManagerName = "Pengelola"
+	}
+
 	var exists int
-	_ = database.DB.Get(&exists, "SELECT COUNT(*) FROM profit_sharing_settings WHERE user_id = $1", tenantID)
+	_ = database.DB.Get(&exists, "SELECT COUNT(*) FROM profit_sharing_settings WHERE user_id = $1 OR tenant_id = $1", tenantID)
 
 	if exists > 0 {
-		_, _ = database.DB.Exec(`
+		_, err := database.DB.Exec(`
 			UPDATE profit_sharing_settings
 			SET owner_percentage = $1, manager_percentage = $2, store_percentage = $3,
 			    owner_name = $4, manager_name = $5, updated_at = CURRENT_TIMESTAMP
-			WHERE user_id = $6
+			WHERE user_id = $6 OR tenant_id = $6
 		`, req.OwnerPercentage, req.ManagerPercentage, req.StorePercentage, req.OwnerName, req.ManagerName, tenantID)
+		if err != nil {
+			utils.RespondError(c, http.StatusInternalServerError, "Gagal memperbarui pengaturan: "+err.Error())
+			return
+		}
 	} else {
-		_, _ = database.DB.Exec(`
-			INSERT INTO profit_sharing_settings (id, user_id, owner_percentage, manager_percentage, store_percentage, owner_name, manager_name)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
+		_, err := database.DB.Exec(`
+			INSERT INTO profit_sharing_settings (id, user_id, tenant_id, owner_percentage, manager_percentage, store_percentage, owner_name, manager_name)
+			VALUES ($1, $2, $2, $3, $4, $5, $6, $7)
 		`, utils.GenerateUUID(), tenantID, req.OwnerPercentage, req.ManagerPercentage, req.StorePercentage, req.OwnerName, req.ManagerName)
+		if err != nil {
+			utils.RespondError(c, http.StatusInternalServerError, "Gagal menyimpan pengaturan: "+err.Error())
+			return
+		}
 	}
 
-	utils.RespondSuccess(c, "Profit sharing settings saved", gin.H{"success": true})
+	utils.RespondSuccess(c, "Pengaturan bagi hasil berhasil disimpan", gin.H{"success": true})
 }
 
 func (h *FinanceHandler) CalculateProfitSharing(c *gin.Context) {
@@ -786,62 +813,84 @@ func (h *FinanceHandler) CalculateProfitSharing(c *gin.Context) {
 		year = now.Year()
 	}
 
-	// Calculate Sales Revenue
+	startDate := fmt.Sprintf("%04d-%02d-01", year, month)
+	firstOfNextMonth := time.Date(year, time.Month(month)+1, 1, 0, 0, 0, 0, time.UTC)
+	lastDayOfMonth := firstOfNextMonth.Add(-24 * time.Hour)
+	endDate := lastDayOfMonth.Format("2006-01-02")
+
+	// 1. Calculate Sales Revenue
 	var posSales float64
 	_ = database.DB.Get(&posSales, `
 		SELECT COALESCE(SUM(total), 0) FROM transactions
-		WHERE user_id = $1 AND status != 'void'
-		  AND EXTRACT(MONTH FROM created_at) = $2 AND EXTRACT(YEAR FROM created_at) = $3
-	`, tenantID, month, year)
+		WHERE (user_id = $1 OR tenant_id = $1)
+		  AND status NOT IN ('void', 'cancelled')
+		  AND (COALESCE(created_at::date, date::date) BETWEEN $2::date AND $3::date)
+	`, tenantID, startDate, endDate)
 
 	var incomeRevenue float64
 	_ = database.DB.Get(&incomeRevenue, `
 		SELECT COALESCE(SUM(amount), 0) FROM incomes
-		WHERE user_id = $1 AND status = 'paid'
-		  AND EXTRACT(MONTH FROM income_date) = $2 AND EXTRACT(YEAR FROM income_date) = $3
-	`, tenantID, month, year)
+		WHERE (user_id = $1 OR tenant_id = $1) AND status = 'paid'
+		  AND (COALESCE(income_date::date, date::date, created_at::date) BETWEEN $2::date AND $3::date)
+	`, tenantID, startDate, endDate)
 
 	totalRevenue := posSales + incomeRevenue
 
-	// Calculate Expenses & COGS
+	// 2. Calculate COGS / HPP (Biaya Modal Produk)
 	var posCOGS float64
 	_ = database.DB.Get(&posCOGS, `
-		SELECT COALESCE(SUM(ti.quantity * ti.cost_price), 0)
+		SELECT COALESCE(SUM(ti.quantity * COALESCE(ti.cost_price, 0)), 0)
 		FROM transaction_items ti
 		JOIN transactions t ON ti.transaction_id = t.id
-		WHERE t.user_id = $1 AND t.status != 'void' AND t.status != 'cancelled'
-		  AND EXTRACT(MONTH FROM t.created_at) = $2 AND EXTRACT(YEAR FROM t.created_at) = $3
-	`, tenantID, month, year)
-
-	var generalExpenses float64
-	_ = database.DB.Get(&generalExpenses, `
-		SELECT COALESCE(SUM(amount), 0) FROM expenses
-		WHERE user_id = $1
-		  AND EXTRACT(MONTH FROM COALESCE(expense_date, date, created_at::date)) = $2 
-		  AND EXTRACT(YEAR FROM COALESCE(expense_date, date, created_at::date)) = $3
-	`, tenantID, month, year)
+		WHERE (t.user_id = $1 OR t.tenant_id = $1)
+		  AND t.status NOT IN ('void', 'cancelled')
+		  AND (COALESCE(t.created_at::date, t.date::date) BETWEEN $2::date AND $3::date)
+	`, tenantID, startDate, endDate)
 
 	var incomeCosts float64
 	_ = database.DB.Get(&incomeCosts, `
 		SELECT COALESCE(SUM(ic.amount), 0)
 		FROM income_costs ic
 		JOIN incomes i ON ic.income_id = i.id
-		WHERE i.user_id = $1
-		  AND EXTRACT(MONTH FROM i.income_date) = $2 AND EXTRACT(YEAR FROM i.income_date) = $3
-	`, tenantID, month, year)
+		WHERE (i.user_id = $1 OR i.tenant_id = $1)
+		  AND (COALESCE(i.income_date::date, i.date::date, i.created_at::date) BETWEEN $2::date AND $3::date)
+	`, tenantID, startDate, endDate)
 
-	totalCosts := posCOGS + generalExpenses + incomeCosts
-	netProfit := totalRevenue - totalCosts
+	cogsCosts := posCOGS + incomeCosts
+
+	// 3. Calculate General Shop Expenses (Pengeluaran Operasional Toko)
+	var generalExpenses float64
+	_ = database.DB.Get(&generalExpenses, `
+		SELECT COALESCE(SUM(amount), 0) FROM expenses
+		WHERE (user_id = $1 OR tenant_id = $1)
+		  AND (COALESCE(expense_date::date, date::date, created_at::date) BETWEEN $2::date AND $3::date)
+	`, tenantID, startDate, endDate)
+
+	// Laba Bersih = Pendapatan - HPP (Biaya Modal) - Pengeluaran Toko
+	netProfit := totalRevenue - cogsCosts - generalExpenses
 	if netProfit < 0 {
 		netProfit = 0
 	}
 
 	var s ProfitSharingSettings
-	_ = database.DB.Get(&s, "SELECT * FROM profit_sharing_settings WHERE user_id = $1", tenantID)
+	_ = database.DB.Get(&s, `
+		SELECT 
+			id, COALESCE(user_id, tenant_id, '') as user_id,
+			COALESCE(owner_percentage, 40) as owner_percentage,
+			COALESCE(manager_percentage, 30) as manager_percentage,
+			COALESCE(store_percentage, 30) as store_percentage,
+			COALESCE(owner_name, 'Owner') as owner_name,
+			COALESCE(manager_name, 'Pengelola') as manager_name
+		FROM profit_sharing_settings 
+		WHERE user_id = $1 OR tenant_id = $1
+		LIMIT 1
+	`, tenantID)
 	if s.OwnerPercentage == 0 && s.ManagerPercentage == 0 && s.StorePercentage == 0 {
 		s.OwnerPercentage = 40
 		s.ManagerPercentage = 30
 		s.StorePercentage = 30
+		s.OwnerName = "Owner"
+		s.ManagerName = "Pengelola"
 	}
 
 	ownerShare := (netProfit * s.OwnerPercentage) / 100
@@ -852,8 +901,8 @@ func (h *FinanceHandler) CalculateProfitSharing(c *gin.Context) {
 		"period_month":       month,
 		"period_year":        year,
 		"total_revenue":      totalRevenue,
-		"total_costs":        totalCosts,
-		"total_expenses":     generalExpenses,
+		"total_costs":        cogsCosts,       // HPP / Biaya Modal Produk
+		"total_expenses":     generalExpenses, // Pengeluaran Toko
 		"pos_cogs":           posCOGS,
 		"net_profit":         netProfit,
 		"owner_percentage":   s.OwnerPercentage,

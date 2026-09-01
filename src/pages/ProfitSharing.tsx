@@ -147,8 +147,8 @@ const ProfitSharing = () => {
     const fetchSettings = async () => {
         try {
             const response = await api.get("/profit-sharing/settings");
-            setSettings(response.data);
             if (response.data) {
+                setSettings(response.data);
                 setSettingsForm({
                     owner_percentage: Number(response.data.owner_percentage) || 40,
                     manager_percentage: Number(response.data.manager_percentage) || 30,
@@ -159,7 +159,14 @@ const ProfitSharing = () => {
             }
         } catch (error: any) {
             console.error("Error fetching settings:", error);
-            setError("Gagal memuat pengaturan");
+            setSettings({
+                id: "default",
+                owner_percentage: 40,
+                manager_percentage: 30,
+                store_percentage: 30,
+                owner_name: "Owner",
+                manager_name: "Pengelola",
+            });
         }
     };
 

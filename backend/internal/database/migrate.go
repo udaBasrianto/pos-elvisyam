@@ -479,13 +479,19 @@ func AutoMigrate(db *sqlx.DB) error {
 			created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE TABLE IF NOT EXISTS profit_sharing_settings (
-			id           VARCHAR(36) PRIMARY KEY,
-			tenant_id    VARCHAR(36) NOT NULL UNIQUE,
-			is_active    BOOLEAN DEFAULT FALSE,
-			period_type  VARCHAR(20) DEFAULT 'monthly',
-			total_shares DECIMAL(5,2) DEFAULT 100,
-			created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			id                 VARCHAR(36) PRIMARY KEY,
+			user_id            VARCHAR(36) NOT NULL,
+			tenant_id          VARCHAR(36),
+			owner_percentage   DECIMAL(5,2) DEFAULT 40,
+			manager_percentage DECIMAL(5,2) DEFAULT 30,
+			store_percentage   DECIMAL(5,2) DEFAULT 30,
+			owner_name         VARCHAR(255) DEFAULT 'Owner',
+			manager_name       VARCHAR(255) DEFAULT 'Pengelola',
+			is_active          BOOLEAN DEFAULT TRUE,
+			period_type        VARCHAR(20) DEFAULT 'monthly',
+			total_shares       DECIMAL(5,2) DEFAULT 100,
+			created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE TABLE IF NOT EXISTS profit_sharing_parties (
 			id            VARCHAR(36) PRIMARY KEY,
@@ -1322,6 +1328,18 @@ func AutoMigrate(db *sqlx.DB) error {
 		`ALTER TABLE profit_distributions ADD COLUMN IF NOT EXISTS notes TEXT`,
 		`CREATE INDEX IF NOT EXISTS idx_profit_distributions_user ON profit_distributions(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_profit_distributions_tenant ON profit_distributions(tenant_id)`,
+
+		// -------------------------------------------------------------
+		// PROFIT SHARING SETTINGS COLUMNS MIGRATION
+		// -------------------------------------------------------------
+		`ALTER TABLE profit_sharing_settings ADD COLUMN IF NOT EXISTS user_id VARCHAR(36)`,
+		`ALTER TABLE profit_sharing_settings ADD COLUMN IF NOT EXISTS owner_percentage DECIMAL(5,2) DEFAULT 40`,
+		`ALTER TABLE profit_sharing_settings ADD COLUMN IF NOT EXISTS manager_percentage DECIMAL(5,2) DEFAULT 30`,
+		`ALTER TABLE profit_sharing_settings ADD COLUMN IF NOT EXISTS store_percentage DECIMAL(5,2) DEFAULT 30`,
+		`ALTER TABLE profit_sharing_settings ADD COLUMN IF NOT EXISTS owner_name VARCHAR(255) DEFAULT 'Owner'`,
+		`ALTER TABLE profit_sharing_settings ADD COLUMN IF NOT EXISTS manager_name VARCHAR(255) DEFAULT 'Pengelola'`,
+		`CREATE INDEX IF NOT EXISTS idx_profit_sharing_settings_user ON profit_sharing_settings(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_profit_sharing_settings_tenant ON profit_sharing_settings(tenant_id)`,
 	}
 
 	for _, q := range queries {
