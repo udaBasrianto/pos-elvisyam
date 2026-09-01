@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================================
-# 🚀 Skrip Update & Deploy Otomatis (tokoryo.web.id)
+# 🚀 Skrip Update & Deploy Otomatis (POS Multi-Domain)
 # ==========================================================
 set -e
 
@@ -11,13 +11,14 @@ CYAN='\033[0;36m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${CYAN}====================================================${NC}"
-echo -e "${CYAN}   🚀 Memulai Update & Deployment TokoRyo POS       ${NC}"
-echo -e "${CYAN}====================================================${NC}"
-
-# Dapatkan direktori root script
+# Dapatkan direktori root script & nama folder
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FOLDER_NAME="$(basename "$ROOT_DIR")"
 cd "$ROOT_DIR"
+
+echo -e "${CYAN}====================================================${NC}"
+echo -e "${CYAN}   🚀 Memulai Update & Deployment POS ($FOLDER_NAME)${NC}"
+echo -e "${CYAN}====================================================${NC}"
 
 # ----------------------------------------------------------
 # 1. TARIK UPDATE DARI GITHUB
@@ -45,43 +46,57 @@ fi
 echo -e "\n${YELLOW}⚙️ [3/4] Mengompilasi Backend Go (backend/)...${NC}"
 if command -v go &> /dev/null; then
     cd "$ROOT_DIR/backend"
-    go build -o backend ./cmd/api/main.go
-    cp -f backend server 2>/dev/null || true
-    chmod +x backend server 2>/dev/null || true
+    go build -o server ./cmd/api/main.go
+    cp -f server backend 2>/dev/null || true
+    chmod +x server backend 2>/dev/null || true
+    cp -f server "$ROOT_DIR/server" 2>/dev/null || true
     mkdir -p "$ROOT_DIR/backend/uploads" "$ROOT_DIR/uploads"
     chmod -R 777 "$ROOT_DIR/backend/uploads" "$ROOT_DIR/uploads" 2>/dev/null || true
-    echo -e "${GREEN}✅ Binary backend Go ('backend' & 'server') berhasil di-compile!${NC}"
+    echo -e "${GREEN}✅ Binary backend Go ('server' & 'backend') berhasil di-compile!${NC}"
     cd "$ROOT_DIR"
 else
     echo -e "${RED}❌ Compiler Go tidak ditemukan di PATH!${NC}"
 fi
 
 # ----------------------------------------------------------
-# 4. RESTART BACKEND SERVICE (pos-tokoryo / aaPanel)
+# 4. RESTART BACKEND SERVICE (systemd / aaPanel / Supervisor)
 # ----------------------------------------------------------
-echo -e "\n${YELLOW}🔄 [4/4] Merestart Layanan Backend TokoRyo...${NC}"
+echo -e "\n${YELLOW}🔄 [4/4] Merestart Layanan Backend POS...${NC}"
 
 RESTARTED=false
 
-if systemctl is-active --quiet "pos-tokoryo" 2>/dev/null; then
-    sudo systemctl restart "pos-tokoryo"
-    echo -e "${GREEN}✅ Service systemd 'pos-tokoryo' berhasil di-restart!${NC}"
-    RESTARTED=true
-fi
+# Daftar kemungkinan nama service systemd
+DOMAIN_PREFIX="${FOLDER_NAME%%.*}"
+SERVICES=("pos-${DOMAIN_PREFIX}" "pos-${FOLDER_NAME}" "pos-tokoryo" "pos-posh" "pos-elvisyam" "pos-hana")
 
-# Jika bukan via systemd (misal: aaPanel Go Project Daemon / PID)
+for SVC in "${SERVICES[@]}"; do
+    if systemctl is-active --quiet "$SVC" 2>/dev/null; then
+        sudo systemctl restart "$SVC" 2>/dev/null || systemctl restart "$SVC" 2>/dev/null || true
+        echo -e "${GREEN}✅ Service systemd '$SVC' berhasil di-restart!${NC}"
+        RESTARTED=true
+        break
+    fi
+done
+
+# Jika bukan via systemd (misal: aaPanel Go Project Daemon / Supervisor / Process PID)
 if [ "$RESTARTED" = false ]; then
-    PID=$(pgrep -f "backend/backend|backend/server|tokoryo.web.id/backend" | grep -v "$$" | head -n 1 || true)
+    PID=$(pgrep -f "$ROOT_DIR/backend/server|$ROOT_DIR/backend/backend|$ROOT_DIR/server" | grep -v "$$" | head -n 1 || true)
+    if [ -z "$PID" ]; then
+        PID=$(pgrep -f "backend/server|backend/backend" | grep -v "$$" | head -n 1 || true)
+    fi
+
     if [ -n "$PID" ]; then
         echo -e "${CYAN}ℹ️ Menemukan proses backend aktif (PID: $PID). Merestart...${NC}"
         kill -9 "$PID" 2>/dev/null || true
         sleep 1
-        echo -e "${GREEN}✅ Proses backend telah di-trigger restart oleh daemon aaPanel!${NC}"
+        echo -e "${GREEN}✅ Proses backend telah di-trigger restart oleh daemon/supervisor!${NC}"
+        RESTARTED=true
     else
-        echo -e "${YELLOW}ℹ️ Silakan periksa atau restart service di menu Go Project aaPanel / systemctl.${NC}"
+        echo -e "${YELLOW}ℹ️ Layanan backend tidak berjalan via systemd atau PID terdaftar.${NC}"
+        echo -e "${YELLOW}ℹ️ Silakan periksa atau restart service di menu Go Project aaPanel / systemctl jika perlu.${NC}"
     fi
 fi
 
 echo -e "\n${CYAN}====================================================${NC}"
-echo -e "${GREEN}   🎉 Deployment TokoRyo Selesai & Siap Digunakan   ${NC}"
+echo -e "${GREEN}   🎉 Deployment Selesai & Aplikasi Siap Digunakan  ${NC}"
 echo -e "${CYAN}====================================================${NC}\n"
