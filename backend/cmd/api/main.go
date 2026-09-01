@@ -70,6 +70,7 @@ func main() {
 		}
 		// Check extra candidate directories
 		for _, extra := range []string{
+			"/www/wwwroot/pos.elvisyam.com/uploads",
 			"/www/wwwroot/pos-app/uploads",
 			"/www/wwwroot/posh.web.id/uploads",
 			"/www/wwwroot/tokoryo.web.id/uploads",
@@ -89,7 +90,14 @@ func main() {
 	router.GET("/api/uploads/*filepath", serveUploads)
 
 	// 6. Detect and Serve frontend SPA (Single Page Application) from dist if present
-	distDirs := []string{"/www/wwwroot/posh.web.id/dist", "/www/wwwroot/tokoryo.web.id/dist", "./dist", "../dist", "/www/wwwroot/pos-app/dist"}
+	distDirs := []string{
+		"/www/wwwroot/pos.elvisyam.com/dist",
+		"/www/wwwroot/posh.web.id/dist",
+		"/www/wwwroot/tokoryo.web.id/dist",
+		"./dist",
+		"../dist",
+		"/www/wwwroot/pos-app/dist",
+	}
 	var foundDist string
 	for _, d := range distDirs {
 		if fi, err := os.Stat(d); err == nil && fi.IsDir() {
