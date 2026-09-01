@@ -577,8 +577,9 @@ func getUploadDir() string {
 	}
 	for _, dir := range []string{
 		"/www/wwwroot/pos.elvisyam.com/uploads",
+		"/www/wwwroot/hana/uploads",
+		"/www/wwwroot/pos-hana/uploads",
 		"/www/wwwroot/posh.web.id/uploads",
-		"/www/wwwroot/tokoryo.web.id/uploads",
 		"/www/wwwroot/pos-app/uploads",
 	} {
 		if fi, err := os.Stat(dir); err == nil && fi.IsDir() {

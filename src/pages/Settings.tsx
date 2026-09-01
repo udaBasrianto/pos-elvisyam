@@ -684,7 +684,7 @@ const Settings = () => {
                         </Button>
                       </div>
                       <p className="text-[11px] text-muted-foreground">
-                        Gunakan huruf kecil, angka, dan tanda hubung (-). Contoh: <code>tokoryo</code>
+                        Gunakan huruf kecil, angka, dan tanda hubung (-). Contoh: <code>hana</code>
                       </p>
                     </div>
 

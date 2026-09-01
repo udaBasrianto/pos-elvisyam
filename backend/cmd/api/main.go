@@ -101,8 +101,9 @@ func main() {
 	// 6. Detect and Serve frontend SPA (Single Page Application) from dist if present
 	distDirs := []string{
 		"/www/wwwroot/pos.elvisyam.com/dist",
+		"/www/wwwroot/hana/dist",
+		"/www/wwwroot/pos-hana/dist",
 		"/www/wwwroot/posh.web.id/dist",
-		"/www/wwwroot/tokoryo.web.id/dist",
 		"./dist",
 		"../dist",
 		"/www/wwwroot/pos-app/dist",
