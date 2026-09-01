@@ -1059,18 +1059,29 @@ func (h *AdminHandler) GetTenantDailySales(c *gin.Context) {
 	ranges := utils.GetWIBDateRanges()
 
 	type DailyTx struct {
-		ID            string    `json:"id" db:"id"`
-		InvoiceNumber string    `json:"invoice_number" db:"invoice_number"`
-		Total         float64   `json:"total" db:"total"`
-		PaymentMethod string    `json:"payment_method" db:"payment_method"`
-		Status        string    `json:"status" db:"status"`
-		CreatedAt     time.Time `json:"created_at" db:"created_at"`
+		ID            string   `json:"id" db:"id"`
+		InvoiceNo     string   `json:"invoice_no" db:"invoice_no"`
+		InvoiceNumber string   `json:"invoice_number" db:"invoice_number"`
+		Total         float64  `json:"total" db:"total"`
+		PaymentMethod string   `json:"payment_method" db:"payment_method"`
+		Status        string   `json:"status" db:"status"`
+		CashierName   string   `json:"cashier_name" db:"cashier_name"`
+		Latitude      *float64 `json:"latitude" db:"latitude"`
+		Longitude     *float64 `json:"longitude" db:"longitude"`
+		CreatedAt     string   `json:"created_at" db:"created_at"`
 	}
 
 	var list []DailyTx
 	err := database.DB.Select(&list, `
-		SELECT id, COALESCE(invoice_number, '') as invoice_number, total,
-		       COALESCE(payment_method, 'cash') as payment_method, status, created_at
+		SELECT id,
+		       COALESCE(invoice_number, '') as invoice_no,
+		       COALESCE(invoice_number, '') as invoice_number,
+		       total,
+		       COALESCE(payment_method, 'cash') as payment_method,
+		       status,
+		       COALESCE(cashier_name, 'Kasir') as cashier_name,
+		       latitude, longitude,
+		       TO_CHAR(created_at, 'YYYY-MM-DD"T"HH24:MI:SS') as created_at
 		FROM transactions
 		WHERE user_id = $1 AND status = 'completed' AND created_at BETWEEN $2::timestamp AND $3::timestamp
 		ORDER BY created_at DESC
@@ -1313,14 +1324,14 @@ func (h *AdminHandler) ImpersonateTenant(c *gin.Context) {
 
 func (h *AdminHandler) GetAllTransactions(c *gin.Context) {
 	type AllTx struct {
-		ID            string    `json:"id" db:"id"`
-		TenantID      string    `json:"user_id" db:"user_id"`
-		TenantEmail   string    `json:"tenant_email" db:"tenant_email"`
-		InvoiceNumber string    `json:"invoice_number" db:"invoice_number"`
-		Total         float64   `json:"total" db:"total"`
-		PaymentMethod string    `json:"payment_method" db:"payment_method"`
-		Status        string    `json:"status" db:"status"`
-		CreatedAt     time.Time `json:"created_at" db:"created_at"`
+		ID            string  `json:"id" db:"id"`
+		TenantID      string  `json:"user_id" db:"user_id"`
+		TenantEmail   string  `json:"tenant_email" db:"tenant_email"`
+		InvoiceNumber string  `json:"invoice_number" db:"invoice_number"`
+		Total         float64 `json:"total" db:"total"`
+		PaymentMethod string  `json:"payment_method" db:"payment_method"`
+		Status        string  `json:"status" db:"status"`
+		CreatedAt     string  `json:"created_at" db:"created_at"`
 	}
 
 	var list []AllTx
@@ -1328,7 +1339,7 @@ func (h *AdminHandler) GetAllTransactions(c *gin.Context) {
 		SELECT t.id, t.user_id, COALESCE(u.email, 'Unknown') as tenant_email,
 		       COALESCE(t.invoice_number, '') as invoice_number, COALESCE(t.total, 0) as total,
 		       COALESCE(t.payment_method, 'cash') as payment_method, COALESCE(t.status, 'completed') as status,
-		       t.created_at
+		       TO_CHAR(t.created_at, 'YYYY-MM-DD"T"HH24:MI:SS') as created_at
 		FROM transactions t
 		LEFT JOIN users u ON t.user_id = u.id
 		ORDER BY t.created_at DESC

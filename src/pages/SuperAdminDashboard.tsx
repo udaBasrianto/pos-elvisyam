@@ -648,7 +648,11 @@ const SuperAdminDashboard = () => {
     };
 
     const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleDateString("id-ID", {
+        if (!dateString) return "-";
+        const cleanDateStr = typeof dateString === 'string' && dateString.endsWith('Z')
+            ? dateString.replace('Z', '')
+            : dateString;
+        return new Date(cleanDateStr).toLocaleDateString("id-ID", {
             year: "numeric",
             month: "short",
             day: "numeric",

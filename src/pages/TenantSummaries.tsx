@@ -172,7 +172,11 @@ const TenantSummaries = () => {
 
     const formatTime = (dateString: string) => {
         try {
-            return new Date(dateString).toLocaleTimeString("id-ID", {
+            if (!dateString) return "-";
+            const cleanDateStr = typeof dateString === 'string' && dateString.endsWith('Z')
+                ? dateString.replace('Z', '')
+                : dateString;
+            return new Date(cleanDateStr).toLocaleTimeString("id-ID", {
                 hour: "2-digit",
                 minute: "2-digit"
             }) + " WIB";
