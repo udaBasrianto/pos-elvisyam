@@ -218,14 +218,14 @@ const Reports = () => {
 
   // Calculate key metrics
   const metrics = useMemo(() => {
-    const totalRevenue = filteredTransactions.reduce((sum, t) => sum + t.total, 0);
+    const totalRevenue = (filteredTransactions || []).reduce((sum, t) => sum + (Number(t?.total) || 0), 0);
 
-    const totalTransactions = filteredTransactions.length;
-    const totalItems = filteredTransactions.reduce((sum, t) => sum + t.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
+    const totalTransactions = (filteredTransactions || []).length;
+    const totalItems = (filteredTransactions || []).reduce((sum, t) => sum + (t?.items || []).reduce((itemSum, item) => itemSum + (Number(item?.quantity) || 0), 0), 0);
     const averageOrderValue = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
-    const totalDiscount = filteredTransactions.reduce((sum, t) => sum + t.discount, 0);
-    const totalTax = filteredTransactions.reduce((sum, t) => sum + t.tax, 0);
-    const subtotalRevenue = filteredTransactions.reduce((sum, t) => sum + t.subtotal, 0);
+    const totalDiscount = (filteredTransactions || []).reduce((sum, t) => sum + (Number(t?.discount) || 0), 0);
+    const totalTax = (filteredTransactions || []).reduce((sum, t) => sum + (Number(t?.tax) || 0), 0);
+    const subtotalRevenue = (filteredTransactions || []).reduce((sum, t) => sum + (Number(t?.subtotal) || 0), 0);
 
     return { totalRevenue, totalTransactions, totalItems, averageOrderValue, totalDiscount, totalTax, subtotalRevenue };
   }, [filteredTransactions, state.products]);
@@ -235,19 +235,19 @@ const Reports = () => {
     let totalCOGS = 0;
     let totalRevenue = 0;
 
-    filteredTransactions.forEach(transaction => {
-      totalRevenue += transaction.total;
+    (filteredTransactions || []).forEach(transaction => {
+      totalRevenue += (Number(transaction?.total) || 0);
       
-      transaction.items.forEach(item => {
-        const product = state.products.find(p => String(p.id) === String(item.productId));
+      (transaction?.items || []).forEach(item => {
+        const product = (state.products || []).find(p => String(p.id) === String(item.productId));
         const costPrice = product?.costPrice || 0;
         
-        totalCOGS += costPrice * item.quantity;
+        totalCOGS += costPrice * (Number(item?.quantity) || 0);
       });
     });
 
     // Calculate total expenses from fetched data
-    const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+    const totalExpenses = (expenses || []).reduce((sum, e) => sum + Number(e?.amount || 0), 0);
 
     // Calculate service income (pendapatan jasa)
     const serviceIncome = incomeSummary?.paid_amount ? Number(incomeSummary.paid_amount) : 0;
@@ -316,12 +316,12 @@ const Reports = () => {
         return tDate.toDateString() === date.toDateString();
       });
 
-      const revenue = dayTransactions.reduce((sum, t) => sum + t.total, 0);
-      const profit = dayTransactions.reduce((sum, t) => {
-        return sum + t.items.reduce((itemSum, item) => {
-          const product = state.products.find(p => String(p.id) === String(item.productId));
+      const revenue = (dayTransactions || []).reduce((sum, t) => sum + (Number(t?.total) || 0), 0);
+      const profit = (dayTransactions || []).reduce((sum, t) => {
+        return sum + (t?.items || []).reduce((itemSum, item) => {
+          const product = (state.products || []).find(p => String(p.id) === String(item.productId));
           const costPrice = product?.costPrice || 0;
-          return itemSum + (item.subtotal - (costPrice * item.quantity));
+          return itemSum + ((Number(item?.subtotal) || 0) - (costPrice * (Number(item?.quantity) || 0)));
         }, 0);
       }, 0);
 
@@ -348,17 +348,17 @@ const Reports = () => {
       const weekStart = new Date(weekEnd);
       weekStart.setDate(weekStart.getDate() - 6);
 
-      const weekTransactions = filteredTransactions.filter(t => {
+      const weekTransactions = (filteredTransactions || []).filter(t => {
         const tDate = new Date(t.createdAt);
         return tDate >= weekStart && tDate <= weekEnd;
       });
 
-      const revenue = weekTransactions.reduce((sum, t) => sum + t.total, 0);
-      const profit = weekTransactions.reduce((sum, t) => {
-        return sum + t.items.reduce((itemSum, item) => {
-          const product = state.products.find(p => String(p.id) === String(item.productId));
+      const revenue = (weekTransactions || []).reduce((sum, t) => sum + (Number(t?.total) || 0), 0);
+      const profit = (weekTransactions || []).reduce((sum, t) => {
+        return sum + (t?.items || []).reduce((itemSum, item) => {
+          const product = (state.products || []).find(p => String(p.id) === String(item.productId));
           const costPrice = product?.costPrice || 0;
-          return itemSum + (item.subtotal - (costPrice * item.quantity));
+          return itemSum + ((Number(item?.subtotal) || 0) - (costPrice * (Number(item?.quantity) || 0)));
         }, 0);
       }, 0);
 
@@ -385,17 +385,17 @@ const Reports = () => {
       const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
       const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
 
-      const monthTransactions = state.transactions.filter(t => {
+      const monthTransactions = (state.transactions || []).filter(t => {
         const tDate = new Date(t.createdAt);
         return tDate >= monthStart && tDate <= monthEnd && t.status === 'completed';
       });
 
-      const revenue = monthTransactions.reduce((sum, t) => sum + t.total, 0);
-      const profit = monthTransactions.reduce((sum, t) => {
-        return sum + t.items.reduce((itemSum, item) => {
-          const product = state.products.find(p => String(p.id) === String(item.productId));
+      const revenue = (monthTransactions || []).reduce((sum, t) => sum + (Number(t?.total) || 0), 0);
+      const profit = (monthTransactions || []).reduce((sum, t) => {
+        return sum + (t?.items || []).reduce((itemSum, item) => {
+          const product = (state.products || []).find(p => String(p.id) === String(item.productId));
           const costPrice = product?.costPrice || 0;
-          return itemSum + (item.subtotal - (costPrice * item.quantity));
+          return itemSum + ((Number(item?.subtotal) || 0) - (costPrice * (Number(item?.quantity) || 0)));
         }, 0);
       }, 0);
 
@@ -552,10 +552,11 @@ const Reports = () => {
 
   // Top products analysis
   const topProducts = useMemo(() => {
-    const productSales = filteredTransactions.reduce((acc, transaction) => {
-      transaction.items.forEach(item => {
+    const productSales = (filteredTransactions || []).reduce((acc, transaction) => {
+      (transaction?.items || []).forEach(item => {
+        if (!item || !item.productId) return;
         if (!acc[item.productId]) {
-          const product = state.products.find(p => String(p.id) === String(item.productId));
+          const product = (state.products || []).find(p => String(p.id) === String(item.productId));
           acc[item.productId] = {
             productId: item.productId,
             productName: item.productName,
@@ -567,9 +568,9 @@ const Reports = () => {
             ownershipType: product?.ownershipType || 'owned',
           };
         }
-        acc[item.productId].quantity += item.quantity;
-        acc[item.productId].revenue += item.subtotal;
-        acc[item.productId].profit += item.subtotal - (acc[item.productId].costPrice * item.quantity);
+        acc[item.productId].quantity += (Number(item.quantity) || 0);
+        acc[item.productId].revenue += (Number(item.subtotal) || 0);
+        acc[item.productId].profit += (Number(item.subtotal) || 0) - (acc[item.productId].costPrice * (Number(item.quantity) || 0));
         acc[item.productId].transactions += 1;
       });
       return acc;
@@ -581,9 +582,10 @@ const Reports = () => {
   }, [filteredTransactions, state.products]);
 
   const categorySummary = useMemo(() => {
-    const summary = filteredTransactions.reduce((acc, transaction) => {
-      transaction.items.forEach(item => {
-        const product = state.products.find(p => String(p.id) === String(item.productId));
+    const summary = (filteredTransactions || []).reduce((acc, transaction) => {
+      (transaction?.items || []).forEach(item => {
+        if (!item) return;
+        const product = (state.products || []).find(p => String(p.id) === String(item.productId));
         const category = product?.category || 'Tanpa Kategori';
         const costPrice = product?.costPrice || 0;
 
@@ -595,9 +597,9 @@ const Reports = () => {
             profit: 0,
           };
         }
-        acc[category].quantity += item.quantity;
-        acc[category].revenue += item.subtotal;
-        acc[category].profit += item.subtotal - costPrice * item.quantity;
+        acc[category].quantity += (Number(item.quantity) || 0);
+        acc[category].revenue += (Number(item.subtotal) || 0);
+        acc[category].profit += (Number(item.subtotal) || 0) - costPrice * (Number(item.quantity) || 0);
       });
       return acc;
     }, {} as Record<string, { category: string; quantity: number; revenue: number; profit: number }>);
@@ -606,7 +608,7 @@ const Reports = () => {
   }, [filteredTransactions, state.products]);
 
   const cashierSummary = useMemo(() => {
-    const summary = filteredTransactions.reduce((acc, transaction) => {
+    const summary = (filteredTransactions || []).reduce((acc, transaction) => {
       const key = transaction.cashierId || transaction.cashierName || 'unknown';
       const name = transaction.cashierName || 'Tidak diketahui';
       if (!acc[key]) {
@@ -620,12 +622,12 @@ const Reports = () => {
       }
       acc[key].transactions += 1;
       
-      acc[key].revenue += transaction.total;
+      acc[key].revenue += (Number(transaction?.total) || 0);
       
-      const txProfit = transaction.items.reduce((sum, item) => {
-        const product = state.products.find(p => p.id === item.productId);
+      const txProfit = (transaction?.items || []).reduce((sum, item) => {
+        const product = (state.products || []).find(p => p.id === item.productId);
         const costPrice = product?.costPrice || 0;
-        return sum + (item.subtotal - costPrice * item.quantity);
+        return sum + ((Number(item?.subtotal) || 0) - costPrice * (Number(item?.quantity) || 0));
       }, 0);
       acc[key].profit += txProfit;
       return acc;

@@ -135,7 +135,7 @@ const Dashboard = () => {
 
   // Calculate Sales
   const calculateSales = (txs: typeof transactions) => {
-    return txs.reduce((sum, t) => sum + t.total, 0);
+    return (txs || []).reduce((sum, t) => sum + (Number(t?.total) || 0), 0);
   };
 
   const todaySales = calculateSales(todayTransactions);
@@ -149,11 +149,11 @@ const Dashboard = () => {
     let revenue = 0;
     let cogs = 0;
     
-    txs.forEach(t => {
-      revenue += t.total;
-      t.items.forEach(item => {
+    (txs || []).forEach(t => {
+      revenue += (Number(t?.total) || 0);
+      (t?.items || []).forEach(item => {
         const product = products.find(p => String(p.id) === String(item.productId));
-        const cost = (product?.costPrice || 0) * item.quantity;
+        const cost = (product?.costPrice || 0) * (Number(item?.quantity) || 0);
         cogs += cost;
       });
     });
@@ -184,8 +184,8 @@ const Dashboard = () => {
     : 0;
 
   // Products sold today
-  const todayProductsSold = todayTransactions.reduce((sum, t) => 
-    sum + t.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0
+  const todayProductsSold = (todayTransactions || []).reduce((sum, t) => 
+    sum + (t?.items || []).reduce((itemSum, item) => itemSum + (Number(item?.quantity) || 0), 0), 0
   );
 
   // Stock Analysis
@@ -199,23 +199,24 @@ const Dashboard = () => {
   const safeStockProductsCount = products.length - lowStockProducts.length;
 
   // Payment Breakdown (this month)
-  const paymentBreakdown = monthTransactions.reduce((acc, t) => {
+  const paymentBreakdown = (monthTransactions || []).reduce((acc, t) => {
     const method = t.paymentMethod || 'cash';
-    acc[method] = (acc[method] || 0) + t.total;
+    acc[method] = (acc[method] || 0) + (Number(t.total) || 0);
     return acc;
   }, {} as Record<string, number>);
 
   const totalPaymentSum = Object.values(paymentBreakdown).reduce((a, b) => a + b, 0) || 1;
 
   // Top products (by quantity sold this month)
-  const productSales = monthTransactions
-    .flatMap(t => t.items)
+  const productSales = (monthTransactions || [])
+    .flatMap(t => t?.items || [])
     .reduce((acc, item) => {
+      if (!item || !item.productName) return acc;
       if (!acc[item.productName]) {
         acc[item.productName] = { sold: 0, revenue: 0 };
       }
-      acc[item.productName].sold += item.quantity;
-      acc[item.productName].revenue += item.subtotal;
+      acc[item.productName].sold += (Number(item.quantity) || 0);
+      acc[item.productName].revenue += (Number(item.subtotal) || 0);
       return acc;
     }, {} as Record<string, { sold: number; revenue: number }>);
 

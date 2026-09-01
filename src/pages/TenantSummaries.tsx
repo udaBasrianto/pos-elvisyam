@@ -110,10 +110,11 @@ const TenantSummaries = () => {
         if (!silent) setIsLoading(true);
         try {
             const res = await api.get('/admin/tenants/summaries');
-            setTenantSummaries(res.data);
+            setTenantSummaries(Array.isArray(res.data) ? res.data : []);
         } catch (error) {
             console.error("Error fetching summaries:", error);
             toast.error("Gagal memuat data ringkasan tenant");
+            setTenantSummaries([]);
         } finally {
             if (!silent) setIsLoading(false);
         }
@@ -137,25 +138,28 @@ const TenantSummaries = () => {
                 api.get(`/admin/tenants/${tenant.tenant_id}/products`),
                 api.get(`/admin/tenants/${tenant.tenant_id}/daily-sales`)
             ]);
-            setTenantProducts(productsRes.data || []);
-            setTenantDailySales(salesRes.data || []);
+            setTenantProducts(Array.isArray(productsRes.data) ? productsRes.data : []);
+            setTenantDailySales(Array.isArray(salesRes.data) ? salesRes.data : []);
         } catch (error) {
             console.error("Error fetching tenant details:", error);
             toast.error("Gagal mengambil data produk atau penjualan tenant");
+            setTenantProducts([]);
+            setTenantDailySales([]);
         } finally {
             setIsLoadingDetails(false);
         }
     };
 
     // Calculate aggregated states for KPI Cards
-    const totalTodayRevenue = tenantSummaries.reduce((sum, item) => sum + Number(item.today_revenue), 0);
-    const totalTodayTransactions = tenantSummaries.reduce((sum, item) => sum + Number(item.today_transactions), 0);
-    const totalMonthRevenue = tenantSummaries.reduce((sum, item) => sum + Number(item.month_revenue), 0);
-    const totalMonthMargin = tenantSummaries.reduce((sum, item) => sum + Number(item.month_margin || 0), 0);
+    const safeSummaries = Array.isArray(tenantSummaries) ? tenantSummaries : [];
+    const totalTodayRevenue = safeSummaries.reduce((sum, item) => sum + Number(item?.today_revenue || 0), 0);
+    const totalTodayTransactions = safeSummaries.reduce((sum, item) => sum + Number(item?.today_transactions || 0), 0);
+    const totalMonthRevenue = safeSummaries.reduce((sum, item) => sum + Number(item?.month_revenue || 0), 0);
+    const totalMonthMargin = safeSummaries.reduce((sum, item) => sum + Number(item?.month_margin || 0), 0);
     
     // Find top active tenant today
-    const topTenantToday = [...tenantSummaries]
-        .sort((a, b) => b.today_revenue - a.today_revenue)[0];
+    const topTenantToday = [...safeSummaries]
+        .sort((a, b) => (b?.today_revenue || 0) - (a?.today_revenue || 0))[0];
 
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat("id-ID", {
