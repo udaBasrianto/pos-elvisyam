@@ -74,6 +74,12 @@ const Expenses = () => {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("semua");
     const [selectedPeriod, setSelectedPeriod] = useState("month");
+    const [customStartDate, setCustomStartDate] = useState(
+        new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
+    );
+    const [customEndDate, setCustomEndDate] = useState(
+        new Date().toISOString().split('T')[0]
+    );
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -91,13 +97,22 @@ const Expenses = () => {
     useEffect(() => {
         loadExpenses();
         loadCategories();
-    }, [selectedPeriod]);
+    }, [selectedPeriod, selectedPeriod === "custom" ? customStartDate : null, selectedPeriod === "custom" ? customEndDate : null]);
 
     const loadExpenses = async () => {
         try {
             setIsLoading(true);
-            const res = await api.get(`/expenses?period=${selectedPeriod}`);
-            setExpenses(res.data);
+            let url = `/expenses?period=${selectedPeriod}`;
+            if (selectedPeriod === "custom") {
+                const params = new URLSearchParams();
+                if (customStartDate) params.append("startDate", customStartDate);
+                if (customEndDate) params.append("endDate", customEndDate);
+                url = `/expenses?${params.toString()}`;
+            } else if (selectedPeriod === "all") {
+                url = `/expenses?period=all`;
+            }
+            const res = await api.get(url);
+            setExpenses(Array.isArray(res.data) ? res.data : []);
         } catch (error) {
             console.error('Error loading expenses:', error);
             toast({ title: "Gagal memuat pengeluaran", variant: "destructive" });
@@ -376,7 +391,13 @@ const Expenses = () => {
                     <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-muted-foreground">Pengeluaran Periode Ini</p>
+                                <p className="text-sm text-muted-foreground">
+                                    {selectedPeriod === "today" ? "Pengeluaran Hari Ini" :
+                                     selectedPeriod === "week" ? "Pengeluaran 7 Hari" :
+                                     selectedPeriod === "year" ? "Pengeluaran Tahun Ini" :
+                                     selectedPeriod === "all" ? "Semua Pengeluaran" :
+                                     selectedPeriod === "custom" ? "Pengeluaran Kustom" : "Pengeluaran Bulan Ini"}
+                                </p>
                                 <p className="text-2xl font-bold text-orange-600">{formatCurrency(thisMonthExpenses)}</p>
                             </div>
                             <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-xl">
@@ -419,20 +440,20 @@ const Expenses = () => {
 
             {/* Filters */}
             <Card className="bg-gradient-card border-0 shadow-sm">
-                <CardContent className="p-4">
-                    <div className="flex flex-col sm:flex-row gap-4">
+                <CardContent className="p-4 space-y-4">
+                    <div className="flex flex-col sm:flex-row gap-3">
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                             <Input
-                                placeholder="Cari pengeluaran..."
+                                placeholder="Cari pengeluaran atau deskripsi..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="pl-10"
                             />
                         </div>
                         <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                            <SelectTrigger className="w-[180px]">
-                                <Calendar className="w-4 h-4 mr-2" />
+                            <SelectTrigger className="w-full sm:w-[190px]">
+                                <Calendar className="w-4 h-4 mr-2 text-primary" />
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -440,11 +461,13 @@ const Expenses = () => {
                                 <SelectItem value="week">7 Hari Terakhir</SelectItem>
                                 <SelectItem value="month">Bulan Ini</SelectItem>
                                 <SelectItem value="year">Tahun Ini</SelectItem>
+                                <SelectItem value="custom">📅 Kustom Tanggal</SelectItem>
+                                <SelectItem value="all">Semua Waktu</SelectItem>
                             </SelectContent>
                         </Select>
                         <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                            <SelectTrigger className="w-[180px]">
-                                <Filter className="w-4 h-4 mr-2" />
+                            <SelectTrigger className="w-full sm:w-[190px]">
+                                <Filter className="w-4 h-4 mr-2 text-primary" />
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -455,6 +478,82 @@ const Expenses = () => {
                             </SelectContent>
                         </Select>
                     </div>
+
+                    {/* Custom Date Range Picker Bar */}
+                    {selectedPeriod === "custom" && (
+                        <div className="pt-3 border-t flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-muted/20 p-3 rounded-xl">
+                            <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+                                <div className="flex items-center gap-2">
+                                    <Label className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Dari:</Label>
+                                    <Input
+                                        type="date"
+                                        value={customStartDate}
+                                        onChange={(e) => setCustomStartDate(e.target.value)}
+                                        className="h-9 w-36 text-xs bg-background"
+                                    />
+                                </div>
+                                <span className="text-xs text-muted-foreground font-medium">s/d</span>
+                                <div className="flex items-center gap-2">
+                                    <Label className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Sampai:</Label>
+                                    <Input
+                                        type="date"
+                                        value={customEndDate}
+                                        onChange={(e) => setCustomEndDate(e.target.value)}
+                                        className="h-9 w-36 text-xs bg-background"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Quick presets */}
+                            <div className="flex flex-wrap items-center gap-1.5 self-stretch md:self-auto">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-[11px] px-2.5"
+                                    onClick={() => {
+                                        const now = new Date();
+                                        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+                                        const today = now.toISOString().split('T')[0];
+                                        setCustomStartDate(firstDay);
+                                        setCustomEndDate(today);
+                                    }}
+                                >
+                                    Bulan Ini
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-[11px] px-2.5"
+                                    onClick={() => {
+                                        const now = new Date();
+                                        const firstDayPrev = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
+                                        const lastDayPrev = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
+                                        setCustomStartDate(firstDayPrev);
+                                        setCustomEndDate(lastDayPrev);
+                                    }}
+                                >
+                                    Bulan Lalu
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-[11px] px-2.5"
+                                    onClick={() => {
+                                        const now = new Date();
+                                        const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000)).toISOString().split('T')[0];
+                                        const today = now.toISOString().split('T')[0];
+                                        setCustomStartDate(thirtyDaysAgo);
+                                        setCustomEndDate(today);
+                                    }}
+                                >
+                                    30 Hari
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 

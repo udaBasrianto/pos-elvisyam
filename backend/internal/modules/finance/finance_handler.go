@@ -182,9 +182,14 @@ func (h *FinanceHandler) GetExpenses(c *gin.Context) {
 		case "week":
 			startDate = ranges.Last7DaysStart[:10]
 			endDate = ranges.TodayEnd[:10]
+		case "month":
+			startDate = ranges.MonthStart[:10]
+			endDate = ranges.MonthEnd[:10]
 		case "year":
 			startDate = ranges.YearStart[:10]
 			endDate = ranges.YearEnd[:10]
+		case "all", "custom":
+			// No date filter applied
 		default: // "month"
 			startDate = ranges.MonthStart[:10]
 			endDate = ranges.MonthEnd[:10]
