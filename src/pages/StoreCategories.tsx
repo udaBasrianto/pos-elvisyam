@@ -33,14 +33,14 @@ const StoreCategories = () => {
   const loadShopAndCategories = async () => {
     setIsLoading(true);
     try {
-      const shopRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/store/info/${slug}`);
+      const shopRes = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/store/info/${slug}`);
       if (!shopRes.ok) throw new Error('Shop not found');
       const shopData = await shopRes.json();
       setShopName(shopData.business_name || 'Toko Herbal');
       setThemeColor(shopData.theme_color || 'emerald');
       
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/store/categories?tenant_id=${shopData.tenant_id}`
+        `${import.meta.env.VITE_API_URL || '/api'}/store/categories?tenant_id=${shopData.tenant_id}`
       );
       const data = await response.json();
       setCategories(Array.isArray(data) ? data : []);

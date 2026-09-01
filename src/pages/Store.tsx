@@ -78,7 +78,7 @@ const Store = () => {
   const loadShopInfo = async () => {
     setIsShopLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/store/info/${slug}`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/store/info/${slug}`);
       if (!response.ok) {
         throw new Error('Shop not found');
       }
@@ -103,7 +103,7 @@ const Store = () => {
 
   const loadCategories = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/store/categories?tenant_id=${shopInfo.tenant_id}`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/store/categories?tenant_id=${shopInfo.tenant_id}`);
       const data = await response.json();
       setCategories(Array.isArray(data) ? data : []);
     } catch (error) {
@@ -121,7 +121,7 @@ const Store = () => {
       if (searchQuery) params.append('search', searchQuery);
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/store/products?${params}`
+        `${import.meta.env.VITE_API_URL || '/api'}/store/products?${params}`
       );
       const data = await response.json();
       setProducts(Array.isArray(data) ? data : []);

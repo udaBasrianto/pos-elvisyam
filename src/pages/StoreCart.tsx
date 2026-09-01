@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 const getImageBaseUrl = () => {
     const apiUrl = import.meta.env.VITE_API_URL || '';
     if (apiUrl.startsWith('/')) return ''; // Production - use relative paths
-    return apiUrl.replace('/api', '') || 'http://localhost:5000';
+    return apiUrl.replace('/api', '') || '';
 };
 
 const StoreCart = () => {

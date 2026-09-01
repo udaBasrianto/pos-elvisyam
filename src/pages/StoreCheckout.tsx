@@ -88,7 +88,7 @@ const StoreCheckout = () => {
         try {
             const token = localStorage.getItem('store_customer_token');
             const response = await fetch(
-                `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/store/checkout`,
+                `${import.meta.env.VITE_API_URL || '/api'}/store/checkout`,
                 {
                     method: 'POST',
                     headers: {

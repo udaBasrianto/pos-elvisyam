@@ -563,7 +563,7 @@ const Products = () => {
       ownershipType: product.ownershipType || "owned",
       supplier: product.supplier || "",
     });
-    setImagePreview(product.image ? `${import.meta.env.VITE_API_URL?.replace('/api', '') ?? 'http://localhost:5000'}${product.image}` : null);
+    setImagePreview(product.image ? `${import.meta.env.VITE_API_URL?.replace('/api', '') ?? ''}${product.image}` : null);
     setIsDialogOpen(true);
   };
 

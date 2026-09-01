@@ -86,7 +86,7 @@ const StoreProfile = () => {
         try {
             const token = localStorage.getItem('store_customer_token');
             const response = await fetch(
-                `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/store/orders`,
+                `${import.meta.env.VITE_API_URL || '/api'}/store/orders`,
                 {
                     headers: { 'Authorization': `Bearer ${token}` }
                 }
@@ -107,7 +107,7 @@ const StoreProfile = () => {
         try {
             const token = localStorage.getItem('store_customer_token');
             const response = await fetch(
-                `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/store/auth/point-history`,
+                `${import.meta.env.VITE_API_URL || '/api'}/store/auth/point-history`,
                 {
                     headers: { 'Authorization': `Bearer ${token}` }
                 }

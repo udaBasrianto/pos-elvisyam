@@ -65,7 +65,7 @@ const StoreProductDetail = () => {
 
   const loadShopInfo = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/store/info/${slug}`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/store/info/${slug}`);
       if (response.ok) {
         const data = await response.json();
         setShopInfo(data);
@@ -79,7 +79,7 @@ const StoreProductDetail = () => {
     setIsLoading(true);
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/store/products/${id}`
+        `${import.meta.env.VITE_API_URL || '/api'}/store/products/${id}`
       );
       const data = await response.json();
       if (data.error || !data.id) {
@@ -117,7 +117,7 @@ const StoreProductDetail = () => {
       if (categoryName) params.append('category', categoryName);
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/store/products?${params}`
+        `${import.meta.env.VITE_API_URL || '/api'}/store/products?${params}`
       );
       const data = await response.json();
       if (Array.isArray(data)) {
