@@ -497,14 +497,29 @@ func AutoMigrate(db *sqlx.DB) error {
 			created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE TABLE IF NOT EXISTS profit_distributions (
-			id               VARCHAR(36) PRIMARY KEY,
-			tenant_id        VARCHAR(36) NOT NULL,
-			period_month     VARCHAR(10) NOT NULL,
-			net_profit       DECIMAL(15,2) NOT NULL,
-			distributed_amt  DECIMAL(15,2) NOT NULL,
-			status           VARCHAR(20) DEFAULT 'draft',
-			distribution_data JSONB,
-			created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			id                 VARCHAR(36) PRIMARY KEY,
+			user_id            VARCHAR(36) NOT NULL,
+			tenant_id          VARCHAR(36),
+			period_month       INT NOT NULL,
+			period_year        INT NOT NULL,
+			total_revenue      DECIMAL(15,2) DEFAULT 0,
+			total_costs        DECIMAL(15,2) DEFAULT 0,
+			total_expenses     DECIMAL(15,2) DEFAULT 0,
+			net_profit         DECIMAL(15,2) NOT NULL,
+			owner_amount       DECIMAL(15,2) DEFAULT 0,
+			manager_amount     DECIMAL(15,2) DEFAULT 0,
+			store_amount       DECIMAL(15,2) DEFAULT 0,
+			owner_percentage   DECIMAL(5,2) DEFAULT 40,
+			manager_percentage DECIMAL(5,2) DEFAULT 30,
+			store_percentage   DECIMAL(5,2) DEFAULT 30,
+			owner_paid         BOOLEAN DEFAULT FALSE,
+			manager_paid       BOOLEAN DEFAULT FALSE,
+			owner_paid_date    TIMESTAMP,
+			manager_paid_date  TIMESTAMP,
+			notes              TEXT,
+			status             VARCHAR(20) DEFAULT 'draft',
+			distribution_data  JSONB,
+			created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE TABLE IF NOT EXISTS purchase_orders (
 			id             VARCHAR(36) PRIMARY KEY,
@@ -1285,6 +1300,28 @@ func AutoMigrate(db *sqlx.DB) error {
 		`ALTER TABLE settings ADD COLUMN IF NOT EXISTS facebook_url VARCHAR(255)`,
 		`ALTER TABLE settings ADD COLUMN IF NOT EXISTS whatsapp_number VARCHAR(50)`,
 		`ALTER TABLE settings ADD COLUMN IF NOT EXISTS footer_text TEXT`,
+
+		// -------------------------------------------------------------
+		// PROFIT DISTRIBUTIONS COLUMNS MIGRATION
+		// -------------------------------------------------------------
+		`ALTER TABLE profit_distributions ADD COLUMN IF NOT EXISTS user_id VARCHAR(36)`,
+		`ALTER TABLE profit_distributions ADD COLUMN IF NOT EXISTS period_year INT DEFAULT 2026`,
+		`ALTER TABLE profit_distributions ADD COLUMN IF NOT EXISTS total_revenue DECIMAL(15,2) DEFAULT 0`,
+		`ALTER TABLE profit_distributions ADD COLUMN IF NOT EXISTS total_costs DECIMAL(15,2) DEFAULT 0`,
+		`ALTER TABLE profit_distributions ADD COLUMN IF NOT EXISTS total_expenses DECIMAL(15,2) DEFAULT 0`,
+		`ALTER TABLE profit_distributions ADD COLUMN IF NOT EXISTS owner_amount DECIMAL(15,2) DEFAULT 0`,
+		`ALTER TABLE profit_distributions ADD COLUMN IF NOT EXISTS manager_amount DECIMAL(15,2) DEFAULT 0`,
+		`ALTER TABLE profit_distributions ADD COLUMN IF NOT EXISTS store_amount DECIMAL(15,2) DEFAULT 0`,
+		`ALTER TABLE profit_distributions ADD COLUMN IF NOT EXISTS owner_percentage DECIMAL(5,2) DEFAULT 40`,
+		`ALTER TABLE profit_distributions ADD COLUMN IF NOT EXISTS manager_percentage DECIMAL(5,2) DEFAULT 30`,
+		`ALTER TABLE profit_distributions ADD COLUMN IF NOT EXISTS store_percentage DECIMAL(5,2) DEFAULT 30`,
+		`ALTER TABLE profit_distributions ADD COLUMN IF NOT EXISTS owner_paid BOOLEAN DEFAULT FALSE`,
+		`ALTER TABLE profit_distributions ADD COLUMN IF NOT EXISTS manager_paid BOOLEAN DEFAULT FALSE`,
+		`ALTER TABLE profit_distributions ADD COLUMN IF NOT EXISTS owner_paid_date TIMESTAMP`,
+		`ALTER TABLE profit_distributions ADD COLUMN IF NOT EXISTS manager_paid_date TIMESTAMP`,
+		`ALTER TABLE profit_distributions ADD COLUMN IF NOT EXISTS notes TEXT`,
+		`CREATE INDEX IF NOT EXISTS idx_profit_distributions_user ON profit_distributions(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_profit_distributions_tenant ON profit_distributions(tenant_id)`,
 	}
 
 	for _, q := range queries {

@@ -809,7 +809,7 @@ func (h *FinanceHandler) CalculateProfitSharing(c *gin.Context) {
 		SELECT COALESCE(SUM(ti.quantity * ti.cost_price), 0)
 		FROM transaction_items ti
 		JOIN transactions t ON ti.transaction_id = t.id
-		WHERE t.user_id = $1 AND t.status != 'void'
+		WHERE t.user_id = $1 AND t.status != 'void' AND t.status != 'cancelled'
 		  AND EXTRACT(MONTH FROM t.created_at) = $2 AND EXTRACT(YEAR FROM t.created_at) = $3
 	`, tenantID, month, year)
 
@@ -817,7 +817,8 @@ func (h *FinanceHandler) CalculateProfitSharing(c *gin.Context) {
 	_ = database.DB.Get(&generalExpenses, `
 		SELECT COALESCE(SUM(amount), 0) FROM expenses
 		WHERE user_id = $1
-		  AND EXTRACT(MONTH FROM date) = $2 AND EXTRACT(YEAR FROM date) = $3
+		  AND EXTRACT(MONTH FROM COALESCE(expense_date, date, created_at::date)) = $2 
+		  AND EXTRACT(YEAR FROM COALESCE(expense_date, date, created_at::date)) = $3
 	`, tenantID, month, year)
 
 	var incomeCosts float64
@@ -838,9 +839,9 @@ func (h *FinanceHandler) CalculateProfitSharing(c *gin.Context) {
 	var s ProfitSharingSettings
 	_ = database.DB.Get(&s, "SELECT * FROM profit_sharing_settings WHERE user_id = $1", tenantID)
 	if s.OwnerPercentage == 0 && s.ManagerPercentage == 0 && s.StorePercentage == 0 {
-		s.OwnerPercentage = 50
+		s.OwnerPercentage = 40
 		s.ManagerPercentage = 30
-		s.StorePercentage = 20
+		s.StorePercentage = 30
 	}
 
 	ownerShare := (netProfit * s.OwnerPercentage) / 100
@@ -848,15 +849,23 @@ func (h *FinanceHandler) CalculateProfitSharing(c *gin.Context) {
 	storeShare := (netProfit * s.StorePercentage) / 100
 
 	c.JSON(http.StatusOK, gin.H{
-		"period_month":   month,
-		"period_year":    year,
-		"total_revenue":  totalRevenue,
-		"total_costs":    totalCosts,
-		"net_profit":     netProfit,
-		"owner_amount":   ownerShare,
-		"manager_amount": managerShare,
-		"store_amount":   storeShare,
-		"settings":       s,
+		"period_month":       month,
+		"period_year":        year,
+		"total_revenue":      totalRevenue,
+		"total_costs":        totalCosts,
+		"total_expenses":     generalExpenses,
+		"pos_cogs":           posCOGS,
+		"net_profit":         netProfit,
+		"owner_percentage":   s.OwnerPercentage,
+		"manager_percentage": s.ManagerPercentage,
+		"store_percentage":   s.StorePercentage,
+		"owner_amount":       ownerShare,
+		"owner_share":        ownerShare,
+		"manager_amount":     managerShare,
+		"manager_share":      managerShare,
+		"store_amount":       storeShare,
+		"store_share":        storeShare,
+		"settings":           s,
 	})
 }
 
@@ -864,31 +873,65 @@ func (h *FinanceHandler) GetProfitDistributions(c *gin.Context) {
 	tenantID := c.GetString("tenantId")
 
 	type DistRow struct {
-		ID              string     `json:"id" db:"id"`
-		UserID          string     `json:"user_id" db:"user_id"`
-		PeriodMonth     int        `json:"period_month" db:"period_month"`
-		PeriodYear      int        `json:"period_year" db:"period_year"`
-		TotalRevenue    float64    `json:"total_revenue" db:"total_revenue"`
-		TotalCosts      float64    `json:"total_costs" db:"total_costs"`
-		NetProfit       float64    `json:"net_profit" db:"net_profit"`
-		OwnerAmount     float64    `json:"owner_amount" db:"owner_amount"`
-		ManagerAmount   float64    `json:"manager_amount" db:"manager_amount"`
-		StoreAmount     float64    `json:"store_amount" db:"store_amount"`
-		OwnerPaid       bool       `json:"owner_paid" db:"owner_paid"`
-		ManagerPaid     bool       `json:"manager_paid" db:"manager_paid"`
-		OwnerPaidDate   *time.Time `json:"owner_paid_date" db:"owner_paid_date"`
-		ManagerPaidDate *time.Time `json:"manager_paid_date" db:"manager_paid_date"`
-		CreatedAt       time.Time  `json:"created_at" db:"created_at"`
+		ID                string     `json:"id" db:"id"`
+		UserID            string     `json:"user_id" db:"user_id"`
+		TenantID          *string    `json:"tenant_id" db:"tenant_id"`
+		PeriodMonth       int        `json:"period_month" db:"period_month"`
+		PeriodYear        int        `json:"period_year" db:"period_year"`
+		TotalRevenue      float64    `json:"total_revenue" db:"total_revenue"`
+		TotalCosts        float64    `json:"total_costs" db:"total_costs"`
+		TotalExpenses     float64    `json:"total_expenses" db:"total_expenses"`
+		NetProfit         float64    `json:"net_profit" db:"net_profit"`
+		OwnerAmount       float64    `json:"owner_amount" db:"owner_amount"`
+		OwnerShare        float64    `json:"owner_share" db:"owner_amount"`
+		ManagerAmount     float64    `json:"manager_amount" db:"manager_amount"`
+		ManagerShare      float64    `json:"manager_share" db:"manager_amount"`
+		StoreAmount       float64    `json:"store_amount" db:"store_amount"`
+		StoreShare        float64    `json:"store_share" db:"store_amount"`
+		OwnerPercentage   float64    `json:"owner_percentage" db:"owner_percentage"`
+		ManagerPercentage float64    `json:"manager_percentage" db:"manager_percentage"`
+		StorePercentage   float64    `json:"store_percentage" db:"store_percentage"`
+		OwnerPaid         bool       `json:"owner_paid" db:"owner_paid"`
+		ManagerPaid       bool       `json:"manager_paid" db:"manager_paid"`
+		OwnerPaidDate     *time.Time `json:"owner_paid_date" db:"owner_paid_date"`
+		ManagerPaidDate   *time.Time `json:"manager_paid_date" db:"manager_paid_date"`
+		Notes             *string    `json:"notes" db:"notes"`
+		CreatedAt         time.Time  `json:"created_at" db:"created_at"`
 	}
 
 	var list []DistRow
-	err := database.DB.Select(&list, "SELECT * FROM profit_distributions WHERE user_id = $1 ORDER BY period_year DESC, period_month DESC", tenantID)
+	err := database.DB.Select(&list, `
+		SELECT 
+			id, COALESCE(user_id, tenant_id, '') as user_id, tenant_id,
+			period_month, COALESCE(period_year, 2026) as period_year,
+			COALESCE(total_revenue, 0) as total_revenue,
+			COALESCE(total_costs, 0) as total_costs,
+			COALESCE(total_expenses, 0) as total_expenses,
+			COALESCE(net_profit, 0) as net_profit,
+			COALESCE(owner_amount, 0) as owner_amount,
+			COALESCE(manager_amount, 0) as manager_amount,
+			COALESCE(store_amount, 0) as store_amount,
+			COALESCE(owner_percentage, 40) as owner_percentage,
+			COALESCE(manager_percentage, 30) as manager_percentage,
+			COALESCE(store_percentage, 30) as store_percentage,
+			COALESCE(owner_paid, false) as owner_paid,
+			COALESCE(manager_paid, false) as manager_paid,
+			owner_paid_date, manager_paid_date, notes, created_at
+		FROM profit_distributions 
+		WHERE user_id = $1 OR tenant_id = $1 
+		ORDER BY period_year DESC, period_month DESC, created_at DESC
+	`, tenantID)
 	if err != nil {
 		c.JSON(http.StatusOK, []DistRow{})
 		return
 	}
 	if list == nil {
 		list = []DistRow{}
+	}
+	for i := range list {
+		list[i].OwnerShare = list[i].OwnerAmount
+		list[i].ManagerShare = list[i].ManagerAmount
+		list[i].StoreShare = list[i].StoreAmount
 	}
 	c.JSON(http.StatusOK, list)
 }
@@ -897,14 +940,22 @@ func (h *FinanceHandler) CreateProfitDistribution(c *gin.Context) {
 	tenantID := c.GetString("tenantId")
 
 	var req struct {
-		PeriodMonth   int     `json:"period_month"`
-		PeriodYear    int     `json:"period_year"`
-		TotalRevenue  float64 `json:"total_revenue"`
-		TotalCosts    float64 `json:"total_costs"`
-		NetProfit     float64 `json:"net_profit"`
-		OwnerAmount   float64 `json:"owner_amount"`
-		ManagerAmount float64 `json:"manager_amount"`
-		StoreAmount   float64 `json:"store_amount"`
+		PeriodMonth       int      `json:"period_month"`
+		PeriodYear        int      `json:"period_year"`
+		TotalRevenue      float64  `json:"total_revenue"`
+		TotalCosts        float64  `json:"total_costs"`
+		TotalExpenses     float64  `json:"total_expenses"`
+		NetProfit         float64  `json:"net_profit"`
+		OwnerAmount       *float64 `json:"owner_amount"`
+		OwnerShare        *float64 `json:"owner_share"`
+		ManagerAmount     *float64 `json:"manager_amount"`
+		ManagerShare      *float64 `json:"manager_share"`
+		StoreAmount       *float64 `json:"store_amount"`
+		StoreShare        *float64 `json:"store_share"`
+		OwnerPercentage   float64  `json:"owner_percentage"`
+		ManagerPercentage float64  `json:"manager_percentage"`
+		StorePercentage   float64  `json:"store_percentage"`
+		Notes             string   `json:"notes"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -912,16 +963,37 @@ func (h *FinanceHandler) CreateProfitDistribution(c *gin.Context) {
 		return
 	}
 
+	ownerAmt := 0.0
+	if req.OwnerAmount != nil {
+		ownerAmt = *req.OwnerAmount
+	} else if req.OwnerShare != nil {
+		ownerAmt = *req.OwnerShare
+	}
+
+	managerAmt := 0.0
+	if req.ManagerAmount != nil {
+		managerAmt = *req.ManagerAmount
+	} else if req.ManagerShare != nil {
+		managerAmt = *req.ManagerShare
+	}
+
+	storeAmt := 0.0
+	if req.StoreAmount != nil {
+		storeAmt = *req.StoreAmount
+	} else if req.StoreShare != nil {
+		storeAmt = *req.StoreShare
+	}
+
 	id := utils.GenerateUUID()
 	_, err := database.DB.Exec(`
 		INSERT INTO profit_distributions (
-			id, user_id, period_month, period_year, total_revenue, total_costs, net_profit,
-			owner_amount, manager_amount, store_amount
+			id, user_id, tenant_id, period_month, period_year, total_revenue, total_costs, total_expenses, net_profit,
+			owner_amount, manager_amount, store_amount, owner_percentage, manager_percentage, store_percentage, notes
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+			$1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
 		)
-	`, id, tenantID, req.PeriodMonth, req.PeriodYear, req.TotalRevenue, req.TotalCosts, req.NetProfit,
-		req.OwnerAmount, req.ManagerAmount, req.StoreAmount)
+	`, id, tenantID, req.PeriodMonth, req.PeriodYear, req.TotalRevenue, req.TotalCosts, req.TotalExpenses, req.NetProfit,
+		ownerAmt, managerAmt, storeAmt, req.OwnerPercentage, req.ManagerPercentage, req.StorePercentage, req.Notes)
 
 	if err != nil {
 		utils.RespondError(c, http.StatusInternalServerError, err.Error())
@@ -929,7 +1001,7 @@ func (h *FinanceHandler) CreateProfitDistribution(c *gin.Context) {
 	}
 
 	// Auto-add store amount to reinvestment balance if > 0
-	if req.StoreAmount > 0 {
+	if storeAmt > 0 {
 		_, _ = database.DB.Exec(`
 			INSERT INTO reinvestment_balance (id, user_id, current_balance, total_added)
 			VALUES ($1, $2, $3, $3)
@@ -937,12 +1009,12 @@ func (h *FinanceHandler) CreateProfitDistribution(c *gin.Context) {
 			SET current_balance = reinvestment_balance.current_balance + $3,
 			    total_added = reinvestment_balance.total_added + $3,
 			    updated_at = CURRENT_TIMESTAMP
-		`, utils.GenerateUUID(), tenantID, req.StoreAmount)
+		`, utils.GenerateUUID(), tenantID, storeAmt)
 
 		_, _ = database.DB.Exec(`
 			INSERT INTO reinvestment_transactions (id, user_id, type, amount, description, reference_id, reference_type, transaction_date)
 			VALUES ($1, $2, 'in', $3, $4, $5, 'profit_distribution', CURRENT_DATE)
-		`, utils.GenerateUUID(), tenantID, req.StoreAmount, fmt.Sprintf("Bagi hasil toko periode %d/%d", req.PeriodMonth, req.PeriodYear), id)
+		`, utils.GenerateUUID(), tenantID, storeAmt, fmt.Sprintf("Bagi hasil toko periode %d/%d", req.PeriodMonth, req.PeriodYear), id)
 	}
 
 	utils.RespondSuccess(c, "Distribusi bagi hasil berhasil disimpan", gin.H{"id": id})
