@@ -576,6 +576,7 @@ func getUploadDir() string {
 		return config.AppConfig.UploadsDir
 	}
 	for _, dir := range []string{
+		"/www/wwwroot/pos.elvisyam.com/uploads",
 		"/www/wwwroot/posh.web.id/uploads",
 		"/www/wwwroot/tokoryo.web.id/uploads",
 		"/www/wwwroot/pos-app/uploads",

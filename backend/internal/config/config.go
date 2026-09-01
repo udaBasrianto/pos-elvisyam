@@ -49,6 +49,7 @@ func LoadConfig() *Config {
 
 	// Detect standard uploads directory
 	uploadsDirCandidates := []string{
+		"/www/wwwroot/pos.elvisyam.com/uploads",
 		"/www/wwwroot/posh.web.id/uploads",
 		"/www/wwwroot/tokoryo.web.id/uploads",
 		"/www/wwwroot/pos-app/uploads",
