@@ -573,7 +573,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         invoiceNumber: res.data.invoiceNumber || (res.data.id ? res.data.id.slice(0, 8).toUpperCase() : ''),
         earnedPoints: res.data.earnedPoints,
         accumulatedPoints: res.data.accumulatedPoints,
-        createdAt: new Date().toISOString() 
+        createdAt: res.data.createdAt || res.data.created_at || transaction.createdAt || transaction.created_at || new Date().toISOString() 
       };
       dispatch({ type: 'ADD_TRANSACTION', payload: newTransaction });
       toast.success('Transaksi berhasil diproses');
@@ -701,6 +701,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
       dispatch({ type: 'UPDATE_TRANSACTION', payload: transaction });
       toast.success('Transaksi berhasil diupdate');
+      await loadData();
     } catch (error: any) {
       console.error('Update transaction error:', error);
       toast.error(error.response?.data?.error || 'Gagal mengupdate transaksi');

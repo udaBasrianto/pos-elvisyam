@@ -2,6 +2,7 @@ package pos
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -296,6 +297,11 @@ func (h *POSHandler) CreateTransaction(c *gin.Context) {
 		Status          string               `json:"status"`
 		PointsRedeemed  int                  `json:"points_redeemed"`
 		PointsRedeemed2 int                  `json:"pointsRedeemed"`
+		CreatedAt       string               `json:"created_at"`
+		CreatedAt2      string               `json:"createdAt"`
+		TransactionDate string               `json:"transaction_date"`
+		TransactionDate2 string              `json:"transactionDate"`
+		Date            string               `json:"date"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil || len(req.Items) == 0 {
@@ -332,6 +338,40 @@ func (h *POSHandler) CreateTransaction(c *gin.Context) {
 	shiftID := req.ShiftID
 	if shiftID == "" {
 		shiftID = req.ShiftID2
+	}
+
+	// Determine transaction date (support custom date)
+	txTime := time.Now()
+	dateStr := req.CreatedAt
+	if dateStr == "" {
+		dateStr = req.CreatedAt2
+	}
+	if dateStr == "" {
+		dateStr = req.TransactionDate
+	}
+	if dateStr == "" {
+		dateStr = req.TransactionDate2
+	}
+	if dateStr == "" {
+		dateStr = req.Date
+	}
+	if dateStr != "" {
+		formats := []string{
+			time.RFC3339Nano,
+			time.RFC3339,
+			"2006-01-02T15:04:05.000Z",
+			"2006-01-02T15:04:05Z",
+			"2006-01-02T15:04:05",
+			"2006-01-02 15:04:05",
+			"2006-01-02 15:04",
+			"2006-01-02",
+		}
+		for _, f := range formats {
+			if t, err := time.ParseInLocation(f, dateStr, time.Local); err == nil {
+				txTime = t
+				break
+			}
+		}
 	}
 
 	// Quota check monthly
@@ -449,19 +489,19 @@ func (h *POSHandler) CreateTransaction(c *gin.Context) {
 			subtotal, tax, total_amount, total, discount, tax_amount,
 			final_amount, payment_method, payment_amount, amount_paid,
 			change_amount, promo_code, promo_discount, cashier_name,
-			notes, status, latitude, longitude
+			notes, status, latitude, longitude, created_at, updated_at
 		) VALUES (
 			$1, $2, NULLIF($3, ''), NULLIF($4, ''), $5, $6,
 			$7, $8, $9, $10, $11, $12,
 			$13, $14, $15, $16,
 			$17, $18, $19, $20,
-			$21, $22, $23, $24
+			$21, $22, $23, $24, $25, $25
 		)
 	`, txID, tenantID, shiftID, customerID, customerName, invoiceNum,
 		subtotal, req.Tax, total, total, req.Discount, taxAmount,
 		finalAmount, payMethod, amountPaid, amountPaid,
 		changeAmount, promoCode, promoDiscount, cashierName,
-		req.Notes, status, req.Latitude, req.Longitude)
+		req.Notes, status, req.Latitude, req.Longitude, txTime)
 
 	if err != nil {
 		utils.RespondError(c, http.StatusInternalServerError, err.Error())
@@ -503,48 +543,41 @@ func (h *POSHandler) CreateTransaction(c *gin.Context) {
 
 		// Reduce product stock & record stock movement
 		if pID != "" {
-			var currentStock int
-			err = tx.Get(&currentStock, "SELECT COALESCE(stock, 0) FROM products WHERE id = $1", pID)
-			if err == nil {
-				stockAfter := currentStock - qty
-				_, _ = tx.Exec("UPDATE products SET stock = stock - $1 WHERE id = $2", qty, pID)
-				_, _ = tx.Exec(`
-					INSERT INTO stock_movements (id, user_id, product_id, type, quantity, stock_before, stock_after, reference_type, reference_id, notes, created_by)
-					VALUES ($1, $2, $3, 'sale', $4, $5, $6, 'transaction', $7, $8, $9)
-				`, utils.GenerateUUID(), tenantID, pID, qty, currentStock, stockAfter, txID, fmt.Sprintf("Sale invoice %s", invoiceNum), user.ID)
-			}
+			_, _ = tx.Exec(`
+				UPDATE products
+				SET stock = stock - $1,
+				    updated_at = CURRENT_TIMESTAMP
+				WHERE id = $2 AND tenant_id = $3
+			`, qty, pID, tenantID)
+
+			_, _ = tx.Exec(`
+				INSERT INTO stock_movements (id, tenant_id, product_id, type, quantity, reason, reference_id, user_id, created_at)
+				VALUES ($1, $2, $3, 'out', $4, $5, $6, $7, $8)
+			`, utils.GenerateUUID(), tenantID, pID, qty, fmt.Sprintf("POS Sale #%s", invoiceNum), txID, user.ID, txTime)
 		}
 	}
 
 	// Update customer total purchases, total spent, balance, and loyalty points
 	if customerID != "" {
-		// Calculate point rate and membership from settings
-		var settingsConf struct {
-			MinSpendForMember float64 `db:"min_spend_for_member"`
-			PointRate         float64 `db:"point_rate"`
-			PointValue        float64 `db:"point_value"`
-			GoldThreshold     float64 `db:"gold_threshold"`
-			PlatinumThreshold float64 `db:"platinum_threshold"`
-		}
-		_ = tx.Get(&settingsConf, `
-			SELECT COALESCE(min_spend_for_member, 100000) as min_spend_for_member,
-			       COALESCE(point_rate, 10000) as point_rate,
-			       COALESCE(point_value, 100) as point_value,
-			       COALESCE(gold_threshold, 1000000) as gold_threshold,
-			       COALESCE(platinum_threshold, 5000000) as platinum_threshold
-			FROM settings WHERE user_id = $1
-		`, tenantID)
-
-		if settingsConf.PointRate <= 0 {
-			settingsConf.PointRate = 10000
-		}
-
-		earnedPoints := int(finalAmount / settingsConf.PointRate)
-
-		// Calculate balance deduction: if paying with balance/saldo/credit (kasbon)
 		balanceDeduction := 0.0
-		if payMethod == "balance" || payMethod == "saldo" || payMethod == "credit" {
+		if payMethod == "balance" {
 			balanceDeduction = finalAmount
+		}
+
+		var settingsConf struct {
+			PointsEnabled bool    `json:"points_enabled"`
+			PointRate     float64 `json:"point_rate"`
+			PointValue    float64 `json:"point_value"`
+		}
+		var rawSettings sql.NullString
+		_ = database.DB.Get(&rawSettings, "SELECT settings FROM users WHERE id = $1", tenantID)
+		if rawSettings.Valid && rawSettings.String != "" {
+			_ = json.Unmarshal([]byte(rawSettings.String), &settingsConf)
+		}
+
+		earnedPoints := 0
+		if settingsConf.PointsEnabled && settingsConf.PointRate > 0 {
+			earnedPoints = int(finalAmount / settingsConf.PointRate)
 		}
 
 		_, _ = tx.Exec(`
@@ -559,16 +592,16 @@ func (h *POSHandler) CreateTransaction(c *gin.Context) {
 
 		if pointsRedeemed > 0 {
 			_, _ = tx.Exec(`
-				INSERT INTO point_history (id, tenant_id, customer_id, transaction_id, type, points, amount, notes)
-				VALUES ($1, $2, $3, $4, 'redeemed', $5, $6, $7)
-			`, utils.GenerateUUID(), tenantID, customerID, txID, -pointsRedeemed, float64(pointsRedeemed)*settingsConf.PointValue, fmt.Sprintf("Penukaran %d poin pada transaksi #%s", pointsRedeemed, invoiceNum))
+				INSERT INTO point_history (id, tenant_id, customer_id, transaction_id, type, points, amount, notes, created_at)
+				VALUES ($1, $2, $3, $4, 'redeemed', $5, $6, $7, $8)
+			`, utils.GenerateUUID(), tenantID, customerID, txID, -pointsRedeemed, float64(pointsRedeemed)*settingsConf.PointValue, fmt.Sprintf("Penukaran %d poin pada transaksi #%s", pointsRedeemed, invoiceNum), txTime)
 		}
 
 		if earnedPoints > 0 {
 			_, _ = tx.Exec(`
-				INSERT INTO point_history (id, tenant_id, customer_id, transaction_id, type, points, amount, notes)
-				VALUES ($1, $2, $3, $4, 'earned', $5, $6, $7)
-			`, utils.GenerateUUID(), tenantID, customerID, txID, earnedPoints, finalAmount, fmt.Sprintf("Perolehan poin dari transaksi #%s", invoiceNum))
+				INSERT INTO point_history (id, tenant_id, customer_id, transaction_id, type, points, amount, notes, created_at)
+				VALUES ($1, $2, $3, $4, 'earned', $5, $6, $7, $8)
+			`, utils.GenerateUUID(), tenantID, customerID, txID, earnedPoints, finalAmount, fmt.Sprintf("Perolehan poin dari transaksi #%s", invoiceNum), txTime)
 		}
 	}
 
@@ -612,6 +645,8 @@ func (h *POSHandler) UpdateTransaction(c *gin.Context) {
 		Notes         string  `json:"notes"`
 		Status        string  `json:"status"`
 		Discount      float64 `json:"discount"`
+		CreatedAt     string  `json:"created_at"`
+		CreatedAt2    string  `json:"createdAt"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -619,15 +654,51 @@ func (h *POSHandler) UpdateTransaction(c *gin.Context) {
 		return
 	}
 
-	_, err := database.DB.Exec(`
-		UPDATE transactions
-		SET customer_name = $1, payment_method = $2, notes = $3, status = $4, discount = $5, updated_at = CURRENT_TIMESTAMP
-		WHERE id = $6 AND user_id = $7
-	`, req.CustomerName, req.PaymentMethod, req.Notes, req.Status, req.Discount, id, tenantID)
+	dateStr := req.CreatedAt
+	if dateStr == "" {
+		dateStr = req.CreatedAt2
+	}
+	var updateDate *time.Time
+	if dateStr != "" {
+		formats := []string{
+			time.RFC3339Nano,
+			time.RFC3339,
+			"2006-01-02T15:04:05.000Z",
+			"2006-01-02T15:04:05Z",
+			"2006-01-02T15:04:05",
+			"2006-01-02 15:04:05",
+			"2006-01-02 15:04",
+			"2006-01-02",
+		}
+		for _, f := range formats {
+			if t, err := time.ParseInLocation(f, dateStr, time.Local); err == nil {
+				updateDate = &t
+				break
+			}
+		}
+	}
 
-	if err != nil {
-		utils.RespondError(c, http.StatusInternalServerError, err.Error())
-		return
+	if updateDate != nil {
+		_, err := database.DB.Exec(`
+			UPDATE transactions
+			SET customer_name = $1, payment_method = $2, notes = $3, status = $4, discount = $5,
+			    created_at = $6, updated_at = CURRENT_TIMESTAMP
+			WHERE id = $7 AND user_id = $8
+		`, req.CustomerName, req.PaymentMethod, req.Notes, req.Status, req.Discount, *updateDate, id, tenantID)
+		if err != nil {
+			utils.RespondError(c, http.StatusInternalServerError, err.Error())
+			return
+		}
+	} else {
+		_, err := database.DB.Exec(`
+			UPDATE transactions
+			SET customer_name = $1, payment_method = $2, notes = $3, status = $4, discount = $5, updated_at = CURRENT_TIMESTAMP
+			WHERE id = $6 AND user_id = $7
+		`, req.CustomerName, req.PaymentMethod, req.Notes, req.Status, req.Discount, id, tenantID)
+		if err != nil {
+			utils.RespondError(c, http.StatusInternalServerError, err.Error())
+			return
+		}
 	}
 
 	utils.RespondSuccess(c, "Transaction updated successfully", gin.H{"success": true})
