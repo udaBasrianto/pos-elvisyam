@@ -233,7 +233,6 @@ const AppContext = createContext<{
   state: AppState;
   dispatch: React.Dispatch<AppAction>;
   loadData: () => Promise<void>;
-  saveData: () => void;
   saveSettings: (settings: Settings) => Promise<void>;
   exportData: () => string;
   importData: (data: string) => Promise<boolean>;
@@ -501,7 +500,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (error) { toast.error('Gagal menyimpan pengaturan'); }
   };
 
-  const addProduct = async (product: any) => {
+  const addProduct = async (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
       const res = await api.post('/products', product);
       dispatch({ type: 'ADD_PRODUCT', payload: res.data });
@@ -509,7 +508,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (error) { toast.error('Gagal menambah produk'); }
   };
 
-  const updateProduct = async (product: any) => {
+  const updateProduct = async (product: Product) => {
     try {
       await api.put(`/products/${product.id}`, product);
       dispatch({ type: 'UPDATE_PRODUCT', payload: product });
@@ -525,7 +524,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (error) { toast.error('Gagal menghapus produk'); }
   };
 
-  const addCustomer = async (customer: any) => {
+  const addCustomer = async (customer: Omit<Customer, 'id' | 'joinDate' | 'totalPurchases' | 'totalSpent' | 'status' | 'balance'>) => {
     try {
       const res = await api.post('/customers', customer);
       dispatch({ type: 'ADD_CUSTOMER', payload: res.data });
@@ -533,7 +532,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (error) { toast.error('Gagal menambah pelanggan'); }
   };
 
-  const updateCustomer = async (customer: any) => {
+  const updateCustomer = async (customer: Customer) => {
     try {
       await api.put(`/customers/${customer.id}`, customer);
       dispatch({ type: 'UPDATE_CUSTOMER', payload: customer });
@@ -567,17 +566,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const res = await api.post('/transactions', transaction);
-      const newTransaction = { 
+      const newTransaction: Transaction = { 
         ...transaction, 
         id: res.data.id, 
         invoiceNumber: res.data.invoiceNumber || (res.data.id ? res.data.id.slice(0, 8).toUpperCase() : ''),
         earnedPoints: res.data.earnedPoints,
         accumulatedPoints: res.data.accumulatedPoints,
-        createdAt: res.data.createdAt || res.data.created_at || transaction.createdAt || transaction.created_at || new Date().toISOString() 
+        createdAt: res.data.createdAt || res.data.created_at || transaction.createdAt || new Date().toISOString() 
       };
       dispatch({ type: 'ADD_TRANSACTION', payload: newTransaction });
+      // Update stock in local state for sold items (avoid full reload)
+      newTransaction.items.forEach((item) => {
+        const product = state.products.find(p => p.id === item.productId);
+        if (product) {
+          dispatch({ type: 'UPDATE_PRODUCT', payload: { ...product, stock: Math.max(0, product.stock - item.quantity) } });
+        }
+      });
       toast.success('Transaksi berhasil diproses');
-      await loadData();
       return newTransaction;
     } catch (error: any) { 
       if (error.code === 'ERR_NETWORK') {
@@ -684,7 +689,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const saveData = () => { };
+  // saveData is intentionally a no-op (data is saved on each mutation).
+  // Kept as a stub for backward compatibility.
+  const saveData = () => {};
 
   const updateTransaction = async (transaction: Transaction) => {
     try {
@@ -723,7 +730,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AppContext.Provider value={{
-      state, dispatch, loadData, saveData, saveSettings, exportData, importData, resetData,
+      state, dispatch, loadData, saveSettings, exportData, importData, resetData,
       addProduct, updateProduct, deleteProduct, addCustomer, updateCustomer, deleteCustomer,
       addTransaction, updateTransaction, deleteTransaction
     }}>

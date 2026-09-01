@@ -1,5 +1,5 @@
 import { useContext, useEffect } from 'react';
-import { ScannerContext } from '@/context/ScannerContext';
+import { ScannerContext } from '@/contexts/ScannerContext';
 import { useHardwareScanner } from '@/hooks/useHardwareScanner';
 
 /**

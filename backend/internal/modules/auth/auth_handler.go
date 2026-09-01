@@ -225,7 +225,10 @@ func (h *AuthHandler) SignIn(c *gin.Context) {
 	} else if normalizedIdent == "demo" {
 		normalizedIdent = "demo@posh.web.id"
 	} else if normalizedIdent == "superadmin" {
-		normalizedIdent = "mas@abd.com"
+		// Use SUPER_ADMIN_EMAIL env var if set
+		if config.AppConfig.SuperAdminEmail != "" {
+			normalizedIdent = config.AppConfig.SuperAdminEmail
+		}
 	}
 
 	var user struct {
@@ -246,34 +249,21 @@ func (h *AuthHandler) SignIn(c *gin.Context) {
 	`, normalizedIdent)
 
 	if err != nil {
-		// Auto-seed default accounts on demand if not yet present in DB
-		if (normalizedIdent == "admin@pos.local" || normalizedIdent == "admin") && (req.Password == "password" || req.Password == "admin123" || req.Password == "admin") {
-			hashed, _ := utils.HashPassword(req.Password)
-			saID := utils.GenerateUUID()
-			_, _ = database.DB.Exec(`
-				INSERT INTO users (id, email, password, full_name, role, tenant_id)
-				VALUES ($1, 'admin@pos.local', $2, 'Admin Toko', 'admin', $1)
-				ON CONFLICT (email) DO UPDATE SET password = $2
-			`, saID, hashed)
-			_ = database.DB.Get(&user, "SELECT id, email, password, full_name, role, tenant_id, shop_slug FROM users WHERE email = 'admin@pos.local' LIMIT 1")
-		} else if (normalizedIdent == "demo@posh.web.id" || normalizedIdent == "demo") && (req.Password == "password" || req.Password == "demo123") {
-			hashed, _ := utils.HashPassword(req.Password)
-			demoID := utils.GenerateUUID()
-			_, _ = database.DB.Exec(`
-				INSERT INTO users (id, email, password, full_name, role, tenant_id)
-				VALUES ($1, 'demo@posh.web.id', $2, 'Akun Demo', 'admin', $1)
-				ON CONFLICT (email) DO UPDATE SET password = $2
-			`, demoID, hashed)
-			_ = database.DB.Get(&user, "SELECT id, email, password, full_name, role, tenant_id, shop_slug FROM users WHERE email = 'demo@posh.web.id' LIMIT 1")
-		} else if (normalizedIdent == "mas@abd.com") && (req.Password == "mas@abd.com" || req.Password == "password" || req.Password == "admin123") {
-			hashed, _ := utils.HashPassword(req.Password)
-			saID := utils.GenerateUUID()
-			_, _ = database.DB.Exec(`
-				INSERT INTO users (id, email, password, full_name, role, tenant_id)
-				VALUES ($1, 'mas@abd.com', $2, 'Super Admin', 'super_admin', $1)
-				ON CONFLICT (email) DO UPDATE SET password = $2
-			`, saID, hashed)
-			_ = database.DB.Get(&user, "SELECT id, email, password, full_name, role, tenant_id, shop_slug FROM users WHERE email = 'mas@abd.com' LIMIT 1")
+		// Only auto-seed in DEV_MODE — never in production
+		if config.AppConfig.DevMode {
+			if (normalizedIdent == "admin@pos.local" || normalizedIdent == "admin") && (req.Password == "password" || req.Password == "admin123") {
+				hashed, _ := utils.HashPassword(req.Password)
+				saID := utils.GenerateUUID()
+				_, _ = database.DB.Exec(`
+					INSERT INTO users (id, email, password, full_name, role, tenant_id)
+					VALUES ($1, 'admin@pos.local', $2, 'Admin Toko', 'admin', $1)
+					ON CONFLICT (email) DO NOTHING
+				`, saID, hashed)
+				_ = database.DB.Get(&user, "SELECT id, email, password, full_name, role, tenant_id, shop_slug FROM users WHERE email = 'admin@pos.local' LIMIT 1")
+			} else {
+				utils.RespondError(c, http.StatusUnauthorized, "Email atau password salah")
+				return
+			}
 		} else {
 			utils.RespondError(c, http.StatusUnauthorized, "Email atau password salah")
 			return
@@ -281,10 +271,6 @@ func (h *AuthHandler) SignIn(c *gin.Context) {
 	} else {
 		// Verify password for existing user
 		validPass := utils.CheckPasswordHash(req.Password, user.Password)
-		// Also allow "admin123" or "password" for admin / super_admin development accounts
-		if !validPass && (user.Role == "admin" || user.Role == "super_admin") && (req.Password == "admin123" || req.Password == "password" || req.Password == "mas@abd.com") {
-			validPass = true
-		}
 		if !validPass {
 			utils.RespondError(c, http.StatusUnauthorized, "Email atau password salah")
 			return
@@ -422,11 +408,14 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	if currentPass != "" {
-		if !utils.CheckPasswordHash(currentPass, currentHash) {
-			utils.RespondError(c, http.StatusBadRequest, "Password saat ini salah")
-			return
-		}
+	if currentPass == "" {
+		utils.RespondValidationError(c, "Password saat ini wajib diisi")
+		return
+	}
+
+	if !utils.CheckPasswordHash(currentPass, currentHash) {
+		utils.RespondError(c, http.StatusBadRequest, "Password saat ini salah")
+		return
 	}
 
 	newHash, err := utils.HashPassword(newPass)

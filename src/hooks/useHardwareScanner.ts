@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useContext } from 'react';
-import { ScannerContext } from '@/context/ScannerContext';
+import { ScannerContext } from '@/contexts/ScannerContext';
 import { playScanBeep } from '@/lib/sound';
 
 interface HardwareScannerConfig {

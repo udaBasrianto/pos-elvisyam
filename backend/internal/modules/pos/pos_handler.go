@@ -205,22 +205,23 @@ func (h *POSHandler) GetTransactionByID(c *gin.Context) {
 
 	query := `
 		SELECT id, user_id, shift_id, customer_id, customer_name, invoice_number,
-		       COALESCE(subtotal, 0) as subtotal,
-		       COALESCE(tax, 0) as tax,
-		       COALESCE(total_amount, 0) as total_amount,
-		       COALESCE(total, 0) as total,
-		       COALESCE(discount, 0) as discount,
-		       COALESCE(tax_amount, 0) as tax_amount,
-		       COALESCE(final_amount, 0) as final_amount,
+		       COALESCE(subtotal, 0)::float8 as subtotal,
+		       COALESCE(tax, 0)::float8 as tax,
+		       COALESCE(total_amount, 0)::float8 as total_amount,
+		       COALESCE(total, 0)::float8 as total,
+		       COALESCE(discount, 0)::float8 as discount,
+		       COALESCE(tax_amount, 0)::float8 as tax_amount,
+		       COALESCE(final_amount, 0)::float8 as final_amount,
 		       COALESCE(payment_method, 'cash') as payment_method,
-		       COALESCE(payment_amount, 0) as payment_amount,
-		       COALESCE(amount_paid, 0) as amount_paid,
-		       COALESCE(change_amount, 0) as change_amount,
+		       COALESCE(payment_amount, 0)::float8 as payment_amount,
+		       COALESCE(amount_paid, 0)::float8 as amount_paid,
+		       COALESCE(change_amount, 0)::float8 as change_amount,
 		       promo_code,
-		       COALESCE(promo_discount, 0) as promo_discount,
+		       COALESCE(promo_discount, 0)::float8 as promo_discount,
 		       cashier_name, notes,
 		       COALESCE(status, 'completed') as status,
-		       created_at, updated_at
+		       COALESCE(created_at, CURRENT_TIMESTAMP) as created_at,
+		       COALESCE(updated_at, CURRENT_TIMESTAMP) as updated_at
 		FROM transactions
 		WHERE id = $1 AND user_id = $2
 	`
@@ -236,11 +237,12 @@ func (h *POSHandler) GetTransactionByID(c *gin.Context) {
 	_ = database.DB.Select(&items, `
 		SELECT id, transaction_id, product_id, product_name,
 		       COALESCE(quantity, 1) as quantity,
-		       COALESCE(price, 0) as price,
-		       COALESCE(unit_price, price, 0) as unit_price,
-		       COALESCE(cost_price, 0) as cost_price,
-		       COALESCE(subtotal, 0) as subtotal,
-		       consignment_settlement_id, created_at
+		       COALESCE(price, 0)::float8 as price,
+		       COALESCE(unit_price, price, 0)::float8 as unit_price,
+		       COALESCE(cost_price, 0)::float8 as cost_price,
+		       COALESCE(subtotal, 0)::float8 as subtotal,
+		       consignment_settlement_id,
+		       COALESCE(created_at, CURRENT_TIMESTAMP) as created_at
 		FROM transaction_items
 		WHERE transaction_id = $1
 	`, tx.ID)
@@ -532,28 +534,43 @@ func (h *POSHandler) CreateTransaction(c *gin.Context) {
 			INSERT INTO transaction_items (
 				id, transaction_id, product_id, product_name, quantity, price, unit_price, cost_price, subtotal
 			) VALUES (
-				$1, $2, NULLIF($3, ''), $4, $5, $6, $6, $7, $8
+				$1, $2, NULLIF($3, ''), $4, $5, $6, $7, $8, $9
 			)
-		`, itemID, txID, pID, pName, qty, item.Price, item.CostPrice, itemSubtotal)
+		`, itemID, txID, pID, pName, qty, item.Price, item.Price, item.CostPrice, itemSubtotal)
 
 		if err != nil {
-			utils.RespondError(c, http.StatusInternalServerError, err.Error())
+			utils.RespondError(c, http.StatusInternalServerError, "Gagal menyimpan item transaksi: "+err.Error())
 			return
 		}
 
 		// Reduce product stock & record stock movement
 		if pID != "" {
-			_, _ = tx.Exec(`
+			var currStock int
+			_ = tx.Get(&currStock, "SELECT COALESCE(stock, 0) FROM products WHERE id = $1", pID)
+
+			_, err = tx.Exec(`
 				UPDATE products
 				SET stock = stock - $1,
 				    updated_at = CURRENT_TIMESTAMP
-				WHERE id = $2 AND tenant_id = $3
-			`, qty, pID, tenantID)
+				WHERE id = $2 AND (user_id = $3 OR user_id = $4)
+			`, qty, pID, tenantID, user.ID)
+			if err != nil {
+				// Fallback update without user_id restriction if product belongs to parent tenant
+				_, _ = tx.Exec(`
+					UPDATE products
+					SET stock = stock - $1,
+					    updated_at = CURRENT_TIMESTAMP
+					WHERE id = $2
+				`, qty, pID)
+			}
 
 			_, _ = tx.Exec(`
-				INSERT INTO stock_movements (id, tenant_id, product_id, type, quantity, reason, reference_id, user_id, created_at)
-				VALUES ($1, $2, $3, 'out', $4, $5, $6, $7, $8)
-			`, utils.GenerateUUID(), tenantID, pID, qty, fmt.Sprintf("POS Sale #%s", invoiceNum), txID, user.ID, txTime)
+				INSERT INTO stock_movements (
+					id, user_id, product_id, type, quantity, stock_before, stock_after, reference_type, reference_id, notes, created_by
+				) VALUES (
+					$1, $2, $3, 'out', $4, $5, $6, 'pos', $7, $8, $9
+				)
+			`, utils.GenerateUUID(), tenantID, pID, qty, currStock, currStock-qty, txID, fmt.Sprintf("POS Sale #%s", invoiceNum), user.ID)
 		}
 	}
 
@@ -726,6 +743,31 @@ func (h *POSHandler) DeleteTransaction(c *gin.Context) {
 		pm := strings.ToLower(txDetail.PaymentMethod)
 		if pm == "balance" || pm == "credit" || pm == "saldo" {
 			_, _ = tx.Exec("UPDATE customers SET balance = balance + $1 WHERE id = $2 AND user_id = $3", txDetail.Total, txDetail.CustomerID.String, tenantID)
+		}
+	}
+
+	// Restore product stock for all items in the transaction
+	type txItemStock struct {
+		ProductID sql.NullString `db:"product_id"`
+		Quantity  int            `db:"quantity"`
+	}
+	var txItems []txItemStock
+	_ = tx.Select(&txItems, "SELECT product_id, quantity FROM transaction_items WHERE transaction_id = $1", id)
+	for _, item := range txItems {
+		if item.ProductID.Valid && item.ProductID.String != "" {
+			var currStock int
+			_ = tx.Get(&currStock, "SELECT COALESCE(stock, 0) FROM products WHERE id = $1", item.ProductID.String)
+
+			_, _ = tx.Exec("UPDATE products SET stock = stock + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+				item.Quantity, item.ProductID.String)
+
+			_, _ = tx.Exec(`
+				INSERT INTO stock_movements (
+					id, user_id, product_id, type, quantity, stock_before, stock_after, reference_type, reference_id, notes, created_by
+				) VALUES (
+					$1, $2, $3, 'in', $4, $5, $6, 'delete_tx', $7, $8, $9
+				)
+			`, utils.GenerateUUID(), tenantID, item.ProductID.String, item.Quantity, currStock, currStock+item.Quantity, id, "Pembatalan/Penghapusan Transaksi", c.GetString("userId"))
 		}
 	}
 

@@ -70,13 +70,10 @@ func AuthenticateToken() gin.HandlerFunc {
 		var user AuthUser
 		err = database.DB.Get(&user, "SELECT id, email, full_name, role, COALESCE(tenant_id, id) as tenant_id, COALESCE(shop_slug, '') as shop_slug FROM users WHERE id = $1", claims.ID)
 		if err != nil {
-			// Fallback to claims if db read has issues
-			user = AuthUser{
-				ID:       claims.ID,
-				Email:    claims.Email,
-				Role:     claims.Role,
-				TenantID: tenantID,
-			}
+			// User not found in DB (deleted or deactivated) — reject the request
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Akun tidak ditemukan atau tidak aktif"})
+			c.Abort()
+			return
 		}
 
 		c.Set("user", user)

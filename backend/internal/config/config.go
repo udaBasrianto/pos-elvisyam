@@ -3,23 +3,28 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	Port         string
-	DBHost       string
-	DBPort       string
-	DBUser       string
-	DBPassword   string
-	DBName       string
-	DBSSL        string
-	DatabaseURL  string
-	JWTSecret    string
-	OTPEnabled   bool
-	AdminOTPOnly bool
-	UploadsDir   string
+	Port            string
+	DBHost          string
+	DBPort          string
+	DBUser          string
+	DBPassword      string
+	DBName          string
+	DBSSL           string
+	DatabaseURL     string
+	JWTSecret       string
+	OTPEnabled      bool
+	AdminOTPOnly    bool
+	UploadsDir      string
+	AllowedOrigins  []string // CORS allowed origins
+	SuperAdminEmail string   // Email for super admin account
+	ExtraUploadDirs []string // Additional upload directories to search
+	DevMode         bool     // Enable dev-only features (e.g. default seed accounts)
 }
 
 var AppConfig *Config
@@ -46,6 +51,40 @@ func LoadConfig() *Config {
 
 	otpEnabled := os.Getenv("OTP_ENABLED") == "true"
 	adminOtpOnly := os.Getenv("ADMIN_OTP_ONLY") == "true"
+
+	// SUPER_ADMIN_EMAIL — email for the super admin account
+	superAdminEmail := getEnv("SUPER_ADMIN_EMAIL", "")
+
+	// DEV_MODE — enables dev-only seed accounts (never enable in production)
+	devMode := os.Getenv("DEV_MODE") == "true"
+
+	// ALLOWED_ORIGINS — comma-separated list of allowed CORS origins
+	allowedOriginsStr := os.Getenv("ALLOWED_ORIGINS")
+	var allowedOrigins []string
+	if allowedOriginsStr != "" {
+		for _, o := range strings.Split(allowedOriginsStr, ",") {
+			o = strings.TrimSpace(o)
+			if o != "" {
+				allowedOrigins = append(allowedOrigins, o)
+			}
+		}
+	}
+	if len(allowedOrigins) == 0 {
+		// Secure default: only localhost in dev, require explicit config in prod
+		allowedOrigins = []string{"http://localhost:9001", "http://localhost:5173", "http://localhost:3000"}
+	}
+
+	// EXTRA_UPLOAD_DIRS — comma-separated additional upload dirs to search
+	extraUploadDirsStr := os.Getenv("EXTRA_UPLOAD_DIRS")
+	var extraUploadDirs []string
+	if extraUploadDirsStr != "" {
+		for _, d := range strings.Split(extraUploadDirsStr, ",") {
+			d = strings.TrimSpace(d)
+			if d != "" {
+				extraUploadDirs = append(extraUploadDirs, d)
+			}
+		}
+	}
 
 	// Detect standard uploads directory
 	uploadsDirCandidates := []string{
@@ -87,18 +126,22 @@ func LoadConfig() *Config {
 	_ = os.MkdirAll(uploadsDir, 0777)
 
 	AppConfig = &Config{
-		Port:         port,
-		DBHost:       dbHost,
-		DBPort:       dbPort,
-		DBUser:       dbUser,
-		DBPassword:   dbPass,
-		DBName:       dbName,
-		DBSSL:        dbSSL,
-		DatabaseURL:  dbURL,
-		JWTSecret:    jwtSecret,
-		OTPEnabled:   otpEnabled,
-		AdminOTPOnly: adminOtpOnly,
-		UploadsDir:   uploadsDir,
+		Port:            port,
+		DBHost:          dbHost,
+		DBPort:          dbPort,
+		DBUser:          dbUser,
+		DBPassword:      dbPass,
+		DBName:          dbName,
+		DBSSL:           dbSSL,
+		DatabaseURL:     dbURL,
+		JWTSecret:       jwtSecret,
+		OTPEnabled:      otpEnabled,
+		AdminOTPOnly:    adminOtpOnly,
+		UploadsDir:      uploadsDir,
+		AllowedOrigins:  allowedOrigins,
+		SuperAdminEmail: superAdminEmail,
+		ExtraUploadDirs: extraUploadDirs,
+		DevMode:         devMode,
 	}
 
 	return AppConfig

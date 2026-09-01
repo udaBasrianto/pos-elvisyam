@@ -76,15 +76,16 @@ func main() {
 			c.File(primaryPath)
 			return
 		}
-		// Check extra candidate directories
-		for _, extra := range []string{
-			"/www/wwwroot/pos.elvisyam.com/uploads",
-			"/www/wwwroot/pos-app/uploads",
-			"/www/wwwroot/posh.web.id/uploads",
-			"/www/wwwroot/tokoryo.web.id/uploads",
-			"./uploads",
-			"../uploads",
-		} {
+		// Check extra candidate directories from config (EXTRA_UPLOAD_DIRS env)
+		for _, extra := range cfg.ExtraUploadDirs {
+			extraPath := filepath.Join(extra, filename)
+			if fi, err := os.Stat(extraPath); err == nil && !fi.IsDir() {
+				c.File(extraPath)
+				return
+			}
+		}
+		// Fallback: check relative paths
+		for _, extra := range []string{"./uploads", "../uploads"} {
 			extraPath := filepath.Join(extra, filename)
 			if fi, err := os.Stat(extraPath); err == nil && !fi.IsDir() {
 				c.File(extraPath)
@@ -192,8 +193,13 @@ func main() {
 		c.JSON(http.StatusOK, report)
 	}
 
-	router.GET("/diagnose", diagnoseHandler)
-	router.GET("/api/diagnose", diagnoseHandler)
+	// /diagnose: protected, requires super_admin role
+	diagnoseMiddleware := []gin.HandlerFunc{
+		middleware.AuthenticateToken(),
+		middleware.RequireRole("super_admin"),
+	}
+	router.GET("/diagnose", append(diagnoseMiddleware, diagnoseHandler)...)
+	router.GET("/api/diagnose", append(diagnoseMiddleware, diagnoseHandler)...)
 
 	// 7. Register API Routes under both /api and root / for universal Nginx proxy compatibility
 	registerAllRoutes := func(rg *gin.RouterGroup) {
