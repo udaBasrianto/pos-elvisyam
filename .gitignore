@@ -1,0 +1,64 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.timestamp-*
+
+
+# Dependencies
+node_modules
+
+# Build artifacts
+dist-ssr
+dev-dist
+*.zip
+*.rar
+*.exe
+*.exe~
+backend/backend
+backend/server
+backend/test_bin
+test_bin
+uploads/
+backend/uploads/
+
+
+# Environment variables
+.env
+backend/.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production.local
+# Allow .env.production and .env.example
+!.env.production
+!.env.example
+!backend/.env.example
+
+# Database backups/local files
+test-backup.json
+backend/uploads
+*.gz
+*.sql
+!tokoryo_data.sql
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Temp/test files
+bun.lockb
+*.tsbuildinfo
