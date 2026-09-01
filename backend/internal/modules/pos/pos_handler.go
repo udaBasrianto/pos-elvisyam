@@ -13,6 +13,7 @@ import (
 	"backend/internal/utils"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jmoiron/sqlx"
 )
 
 type POSHandler struct{}
@@ -102,10 +103,10 @@ func (h *POSHandler) GetTransactions(c *gin.Context) {
 	tenantID := c.GetString("tenantId")
 	startDate := c.Query("startDate")
 	endDate := c.Query("endDate")
-	limitStr := c.DefaultQuery("limit", "100")
+	limitStr := c.DefaultQuery("limit", "2000")
 	limit, _ := strconv.Atoi(limitStr)
-	if limit <= 0 {
-		limit = 100
+	if limitStr == "all" || limit <= 0 {
+		limit = 50000
 	}
 
 	query := `
@@ -158,10 +159,17 @@ func (h *POSHandler) GetTransactions(c *gin.Context) {
 		list = []TransactionResp{}
 	}
 
-	// Fetch items for each transaction
-	for i := range list {
-		var items []TransactionItemResp
-		_ = database.DB.Select(&items, `
+	// Fetch items for all transactions in a single batch query
+	if len(list) > 0 {
+		txIDs := make([]string, len(list))
+		txMap := make(map[string]int, len(list))
+		for i, t := range list {
+			txIDs[i] = t.ID
+			txMap[t.ID] = i
+			list[i].Items = []TransactionItemResp{}
+		}
+
+		itemsQuery, itemArgs, err := sqlx.In(`
 			SELECT id, transaction_id, product_id, product_name,
 			       COALESCE(quantity, 1) as quantity,
 			       COALESCE(price, 0)::float8 as price,
@@ -171,12 +179,20 @@ func (h *POSHandler) GetTransactions(c *gin.Context) {
 			       consignment_settlement_id,
 			       COALESCE(created_at, CURRENT_TIMESTAMP) as created_at
 			FROM transaction_items
-			WHERE transaction_id = $1
-		`, list[i].ID)
-		if items == nil {
-			items = []TransactionItemResp{}
+			WHERE transaction_id IN (?)
+		`, txIDs)
+
+		if err == nil {
+			itemsQuery = database.DB.Rebind(itemsQuery)
+			var allItems []TransactionItemResp
+			if err := database.DB.Select(&allItems, itemsQuery, itemArgs...); err == nil {
+				for _, item := range allItems {
+					if idx, ok := txMap[item.TransactionID]; ok {
+						list[idx].Items = append(list[idx].Items, item)
+					}
+				}
+			}
 		}
-		list[i].Items = items
 	}
 
 	c.JSON(http.StatusOK, list)

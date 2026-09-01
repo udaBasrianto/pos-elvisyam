@@ -95,6 +95,7 @@ export interface TransactionItem {
   price: number;
   quantity: number;
   subtotal: number;
+  costPrice?: number;
 }
 
 export interface Settings {
@@ -131,7 +132,9 @@ export interface Settings {
   platinumThreshold?: number;
   authBackground?: string;
   theme_color?: string;
+  themeColor?: string;
   tagline?: string;
+  businessLogo?: string;
   instagram_url?: string;
   facebook_url?: string;
   whatsapp_number?: string;
@@ -257,7 +260,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const [pRes, cRes, tRes, sRes] = await Promise.all([
         api.get('/products'),
         api.get('/customers'),
-        api.get('/transactions'),
+        api.get('/transactions?limit=2000'),
         api.get('/settings')
       ]);
 
@@ -363,7 +366,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         platinumThreshold: Number(settingsData.platinum_threshold || 5000000),
         authBackground: settingsData.auth_background || '',
         theme_color: settingsData.theme_color || 'emerald',
-        themeColor: settingsData.theme_color || 'emerald',
         tagline: settingsData.tagline || 'Sehat Alami, Hidup Harmoni',
         logoUrl: settingsData.logo_url || '',
         businessLogo: settingsData.business_logo || '',

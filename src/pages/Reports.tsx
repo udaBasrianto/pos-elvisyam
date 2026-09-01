@@ -45,7 +45,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useApp } from "@/contexts/AppContext";
+import { useApp, Transaction } from "@/contexts/AppContext";
+import { toast } from "sonner";
 import api from "@/lib/api";
 import {
   ChartContainer,
@@ -92,6 +93,7 @@ const Reports = () => {
   const [customEndDate, setCustomEndDate] = useState("");
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [yearlyExpenses, setYearlyExpenses] = useState<Expense[]>([]);
+  const [yearlyTransactions, setYearlyTransactions] = useState<Transaction[]>([]);
   const [financialSummary, setFinancialSummary] = useState<any>(null);
   const [incomeSummary, setIncomeSummary] = useState<any>(null);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
@@ -150,17 +152,50 @@ const Reports = () => {
     fetchFinancialData();
   }, [selectedPeriod, customStartDate, customEndDate]);
 
-  // Fetch full expenses for the selected year to ensure 100% accurate monthly table
+  // Fetch full expenses & transactions for the selected year to ensure 100% accurate monthly table
   useEffect(() => {
-    const fetchYearlyExpenses = async () => {
+    const fetchYearlyData = async () => {
       try {
-        const res = await api.get(`/expenses?from_date=${selectedYear}-01-01&to_date=${selectedYear}-12-31`);
-        setYearlyExpenses(res.data || []);
+        const [expRes, txRes] = await Promise.all([
+          api.get(`/expenses?from_date=${selectedYear}-01-01&to_date=${selectedYear}-12-31`),
+          api.get(`/transactions?startDate=${selectedYear}-01-01 00:00:00&endDate=${selectedYear}-12-31 23:59:59&limit=50000`)
+        ]);
+        setYearlyExpenses(expRes.data || []);
+        if (Array.isArray(txRes.data)) {
+          const mappedTx: Transaction[] = txRes.data.map((t: any) => ({
+            id: t.id,
+            customerId: t.customer_id,
+            customerName: t.customer_name,
+            invoiceNumber: t.invoice_number,
+            items: (t.items || []).map((i: any) => ({
+              id: i.id,
+              productId: i.product_id,
+              productName: i.product_name,
+              quantity: Number(i.quantity) || 0,
+              price: Number(i.price) || 0,
+              subtotal: Number(i.subtotal) || 0,
+              costPrice: Number(i.cost_price) || 0,
+            })),
+            subtotal: Number(t.subtotal) || Number(t.total) || 0,
+            tax: Number(t.tax) || 0,
+            taxAmount: Number(t.tax_amount) || 0,
+            discount: Number(t.discount) || 0,
+            total: Number(t.total) || 0,
+            paymentMethod: t.payment_method || 'cash',
+            paymentAmount: Number(t.payment_amount) || Number(t.total) || 0,
+            changeAmount: Number(t.change_amount) || 0,
+            cashierName: t.cashier_name,
+            notes: t.notes,
+            status: t.status || 'completed',
+            createdAt: t.created_at || t.createdAt,
+          }));
+          setYearlyTransactions(mappedTx);
+        }
       } catch (err) {
-        console.error("Error fetching yearly expenses:", err);
+        console.error("Error fetching yearly data:", err);
       }
     };
-    fetchYearlyExpenses();
+    fetchYearlyData();
   }, [selectedYear]);
 
   // Calculate date range based on selected period
@@ -385,16 +420,25 @@ const Reports = () => {
       const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
       const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
 
-      const monthTransactions = (state.transactions || []).filter(t => {
-        const tDate = new Date(t.createdAt);
-        return tDate >= monthStart && tDate <= monthEnd && t.status === 'completed';
+      const txSource = yearlyTransactions.length > 0 ? yearlyTransactions : (state.transactions || []);
+      const monthTransactions = (txSource || []).filter(t => {
+        const st = (t.status || 'completed').toLowerCase();
+        if (st === 'void' || st === 'cancelled' || st === 'batal') return false;
+
+        const rawDate = t.createdAt || (t as any).created_at || (t as any).date;
+        if (!rawDate) return false;
+        const dateStr = typeof rawDate === 'string' ? rawDate.replace(' ', 'T') : rawDate;
+        const tDate = new Date(dateStr);
+        if (isNaN(tDate.getTime())) return false;
+
+        return tDate >= monthStart && tDate <= monthEnd;
       });
 
       const revenue = (monthTransactions || []).reduce((sum, t) => sum + (Number(t?.total) || 0), 0);
       const profit = (monthTransactions || []).reduce((sum, t) => {
         return sum + (t?.items || []).reduce((itemSum, item) => {
           const product = (state.products || []).find(p => String(p.id) === String(item.productId));
-          const costPrice = product?.costPrice || 0;
+          const costPrice = item.costPrice || product?.costPrice || 0;
           return itemSum + ((Number(item?.subtotal) || 0) - (costPrice * (Number(item?.quantity) || 0)));
         }, 0);
       }, 0);
@@ -409,20 +453,23 @@ const Reports = () => {
     }
 
     return data;
-  }, [state.transactions, state.products, selectedPeriod]);
+  }, [yearlyTransactions, state.transactions, state.products, selectedPeriod]);
 
   // Available years from transactions
   const availableYears = useMemo(() => {
     const years = new Set<number>();
     years.add(new Date().getFullYear());
-    state.transactions.forEach(t => {
-      if (t.createdAt) {
-        const y = new Date(t.createdAt).getFullYear();
+    const txSource = yearlyTransactions.length > 0 ? yearlyTransactions : (state.transactions || []);
+    (txSource || []).forEach(t => {
+      const rawDate = t.createdAt || (t as any).created_at || (t as any).date;
+      if (rawDate) {
+        const dateStr = typeof rawDate === 'string' ? rawDate.replace(' ', 'T') : rawDate;
+        const y = new Date(dateStr).getFullYear();
         if (!isNaN(y) && y > 2000) years.add(y);
       }
     });
     return Array.from(years).sort((a, b) => b - a);
-  }, [state.transactions]);
+  }, [yearlyTransactions, state.transactions]);
 
   // Comprehensive monthly table data for the selected year
   const detailedMonthlyTable = useMemo(() => {
@@ -437,10 +484,18 @@ const Reports = () => {
       const monthStart = new Date(currentYear, monthIndex, 1, 0, 0, 0, 0);
       const monthEnd = new Date(currentYear, monthIndex + 1, 0, 23, 59, 59, 999);
 
-      // Transactions for this month
-      const monthTx = state.transactions.filter(t => {
-        if (t.status !== 'completed') return false;
-        const d = new Date(t.createdAt);
+      // Transactions for this month (uses yearlyTransactions or falls back to state.transactions)
+      const txSource = yearlyTransactions.length > 0 ? yearlyTransactions : (state.transactions || []);
+      const monthTx = (txSource || []).filter(t => {
+        const st = (t.status || 'completed').toLowerCase();
+        if (st === 'void' || st === 'cancelled' || st === 'batal') return false;
+
+        const rawDate = t.createdAt || (t as any).created_at || (t as any).date;
+        if (!rawDate) return false;
+        const dateStr = typeof rawDate === 'string' ? rawDate.replace(' ', 'T') : rawDate;
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return false;
+
         return d >= monthStart && d <= monthEnd;
       });
 
@@ -458,8 +513,8 @@ const Reports = () => {
 
         (t.items || []).forEach(item => {
           totalQty += Number(item.quantity) || 0;
-          const product = state.products.find(p => String(p.id) === String(item.productId));
-          const cost = product?.costPrice || 0;
+          const product = (state.products || []).find(p => String(p.id) === String(item.productId));
+          const cost = item.costPrice || product?.costPrice || 0;
           totalCOGS += cost * (Number(item.quantity) || 0);
         });
       });
@@ -469,7 +524,9 @@ const Reports = () => {
       const monthExpenses = expensesSource.filter(e => {
         const rawDate = e.expense_date || (e as any).date || (e as any).created_at;
         if (!rawDate) return false;
-        const d = new Date(rawDate);
+        const dateStr = typeof rawDate === 'string' ? rawDate.replace(' ', 'T') : rawDate;
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return false;
         return d >= monthStart && d <= monthEnd;
       }).reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
@@ -496,7 +553,7 @@ const Reports = () => {
         netMargin,
       };
     });
-  }, [selectedYear, state.transactions, state.products, expenses, yearlyExpenses]);
+  }, [selectedYear, yearlyTransactions, state.transactions, state.products, expenses, yearlyExpenses]);
 
   // Annual Totals from the monthly table
   const annualTotals = useMemo(() => {
