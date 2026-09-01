@@ -1,121 +1,28 @@
 # ==============================================================================
-# POSH MULTI-VERTICAL NGINX CONFIGURATION TEMPLATE
+# NGINX CONFIGURATION TEMPLATE: pos.elvisyam.com
 # ==============================================================================
-# Ganti `domainanda.com` dengan domain utama Anda.
-# Pastikan path `/var/www/posh` sesuai dengan direktori proyek di server Anda.
+# Frontend SPA: /www/wwwroot/pos.elvisyam.com/dist
+# Backend Go Proxy: 127.0.0.1:5001 (/api/)
+# Uploads Dir: /www/wwwroot/pos.elvisyam.com/uploads/
 # ==============================================================================
 
-# ------------------------------------------------------------------------------
-# 1. RETAIL & GENERAL POS (Subdomain: retail.domainanda.com / pos.domainanda.com)
-# ------------------------------------------------------------------------------
 server {
     listen 80;
-    server_name retail.domainanda.com pos.domainanda.com;
+    server_name pos.elvisyam.com www.pos.elvisyam.com;
 
-    root /var/www/posh/dist;
+    root /www/wwwroot/pos.elvisyam.com/dist;
     index index.html;
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-        expires 1y;
-        add_header Cache-Control "public, no-transform";
-    }
-}
-
-# ------------------------------------------------------------------------------
-# 2. RESTO & CAFE POS (Subdomain: resto.domainanda.com)
-# ------------------------------------------------------------------------------
-server {
-    listen 80;
-    server_name resto.domainanda.com;
-
-    root /var/www/posh/pos-resto/dist;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-        expires 1y;
-        add_header Cache-Control "public, no-transform";
-    }
-}
-
-# ------------------------------------------------------------------------------
-# 3. BENGKEL & OTOMOTIF POS (Subdomain: bengkel.domainanda.com)
-# ------------------------------------------------------------------------------
-server {
-    listen 80;
-    server_name bengkel.domainanda.com;
-
-    root /var/www/posh/pos-bengkel/dist;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-        expires 1y;
-        add_header Cache-Control "public, no-transform";
-    }
-}
-
-# ------------------------------------------------------------------------------
-# 4. LAUNDRY & CARWASH POS (Subdomain: laundry.domainanda.com)
-# ------------------------------------------------------------------------------
-server {
-    listen 80;
-    server_name laundry.domainanda.com;
-
-    root /var/www/posh/pos-laundry/dist;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-        expires 1y;
-        add_header Cache-Control "public, no-transform";
-    }
-}
-
-# ------------------------------------------------------------------------------
-# 5. BARBERSHOP & SALON POS (Subdomain: barber.domainanda.com)
-# ------------------------------------------------------------------------------
-server {
-    listen 80;
-    server_name barber.domainanda.com;
-
-    root /var/www/posh/pos-barbershop/dist;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-        expires 1y;
-        add_header Cache-Control "public, no-transform";
-    }
-}
-
-# ------------------------------------------------------------------------------
-# 6. SHARED BACKEND GO API (Subdomain: api.domainanda.com)
-# ------------------------------------------------------------------------------
-server {
-    listen 80;
-    server_name api.domainanda.com;
 
     client_max_body_size 50M;
 
+    # 1. Frontend SPA routing
     location / {
-        proxy_pass http://127.0.0.1:8080;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # 2. Proxy API ke Backend Go (Port 5001)
+    location /api/ {
+        proxy_pass http://127.0.0.1:5001;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -124,5 +31,24 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
+
+        # Timeout settings untuk transaksi besar / export data
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # 3. Static Files Uploads (Logo, Gambar Produk, Banner)
+    location /uploads/ {
+        alias /www/wwwroot/pos.elvisyam.com/uploads/;
+        expires 30d;
+        access_log off;
+    }
+
+    # 4. Static Asset Caching (JS, CSS, Icons, Fonts)
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, no-transform";
     }
 }
+

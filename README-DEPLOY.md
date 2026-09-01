@@ -1,31 +1,33 @@
-# 🚀 Panduan Deployment Multi-Domain (posh.web.id & tokoryo.web.id)
-### Backend: Go (Gin Engine) | Frontend: React (Vite SPA) | Database: PostgreSQL (Terpisah per Domain)
+# 🚀 Panduan Deployment Server POS (pos.elvisyam.com)
+### Backend: Go (Gin Engine) | Frontend: React (Vite SPA) | Database: PostgreSQL
 
-Dokumen ini memandu langkah demi langkah konfigurasi dan deployment aplikasi POS untuk multi-domain dengan database terisolasi penuh di server VPS / Cloud Linux (aaPanel / Ubuntu / Debian).
+Dokumen ini memandu langkah demi langkah konfigurasi dan deployment aplikasi POS untuk domain **pos.elvisyam.com** di server VPS / Cloud Linux (aaPanel / Ubuntu / Debian).
 
 ---
 
-## 🏗️ Arsitektur Multi-Domain & Database
+## 🏗️ Parameter Konfigurasi Server
 
-| Parameter | Domain 1 (`posh.web.id`) | Domain 2 (`tokoryo.web.id`) | (Mendatang) Domain 3 (`pos.elvisyam.com`) |
-| :--- | :--- | :--- | :--- |
-| **Frontend Folder** | `/www/wwwroot/posh.web.id/dist` | `/www/wwwroot/tokoryo.web.id/dist` | `/www/wwwroot/pos.elvisyam.com/dist` |
-| **Backend Service** | `pos-posh.service` | `pos-tokoryo.service` | `pos-elvisyam.service` |
-| **Backend Port** | `5001` | `5002` | `5003` |
-| **Database Name** | `pos_posh` | `pos_tokoryo` | `pos_elvisyam` |
-| **Database User** | `postgres` | `postgres` | `postgres` |
-| **Memory RAM Go** | ± 15 - 20 MB | ± 15 - 20 MB | ± 15 - 20 MB |
+| Parameter | Konfigurasi Server (`pos.elvisyam.com`) |
+| :--- | :--- |
+| **Domain** | `pos.elvisyam.com` |
+| **Frontend Root** | `/www/wwwroot/pos.elvisyam.com/dist` |
+| **Backend Directory** | `/www/wwwroot/pos.elvisyam.com/backend` |
+| **Backend Service** | `pos-elvisyam.service` |
+| **Backend Port** | `5001` |
+| **Database Name** | `pos_elvisyam` |
+| **Database User** | `postgres` |
+| **Memory RAM Go** | ± 15 - 25 MB |
 
-> 💡 **Fitur AutoMigrate**: Backend Go sudah dilengkapi fitur **AutoMigrate** bawaan. Begitu backend terhubung ke database baru, seluruh 21 tabel, skema, indeks, akun Super Admin default (`admin@pos.local` / `password`), dan token registrasi akan dibuat secara otomatis!
+> 💡 **Fitur AutoMigrate**: Backend Go sudah dilengkapi fitur **AutoMigrate** bawaan. Begitu backend terhubung ke database `pos_elvisyam`, seluruh 21 tabel, skema, indeks, akun Super Admin default (`admin@pos.local` / `password`), dan token registrasi akan dibuat secara otomatis!
 
 ---
 
 ## 📋 Langkah-Langkah Deployment di Server
 
-### 1️⃣ Buat Database PostgreSQL Terpisah di Server / aaPanel
-Buka PostgreSQL Manager di server Anda, lalu buat 2 database:
-1. `pos_posh`
-2. `pos_tokoryo`
+### 1️⃣ Buat Database PostgreSQL di Server / aaPanel
+Buka PostgreSQL Manager di server Anda, lalu buat database:
+* **Nama Database**: `pos_elvisyam`
+* **User**: `postgres` (atau user DB yang Anda buat)
 
 ---
 
@@ -35,28 +37,16 @@ Buka PostgreSQL Manager di server Anda, lalu buat 2 database:
 # 1. Masuk ke direktori web root
 cd /www/wwwroot
 
-# 2. Clone repositori untuk domain posh.web.id
-git clone https://github.com/udaBasrianto/posh.git posh.web.id
-
-# 3. Clone repositori untuk domain tokoryo.web.id
-git clone https://github.com/udaBasrianto/posh.git tokoryo.web.id
+# 2. Clone repositori untuk domain pos.elvisyam.com
+git clone https://github.com/udaBasrianto/pos-elvisyam.git pos.elvisyam.com
 ```
 
 ---
 
-### 3️⃣ Build Frontend untuk Masing-Masing Domain
+### 3️⃣ Build Frontend
 
-#### Domain 1 (`posh.web.id`):
 ```bash
-cd /www/wwwroot/posh.web.id
-echo "VITE_API_URL=/api" > .env.production
-npm install
-npm run build
-```
-
-#### Domain 2 (`tokoryo.web.id`):
-```bash
-cd /www/wwwroot/tokoryo.web.id
+cd /www/wwwroot/pos.elvisyam.com
 echo "VITE_API_URL=/api" > .env.production
 npm install
 npm run build
@@ -66,9 +56,8 @@ npm run build
 
 ### 4️⃣ Setup & Compile Backend Go
 
-#### A. Konfigurasi Backend posh.web.id (`PORT=5001`, `DB_NAME=pos_posh`)
 ```bash
-cd /www/wwwroot/posh.web.id/backend
+cd /www/wwwroot/pos.elvisyam.com/backend
 
 cat << 'EOF' > .env
 PORT=5001
@@ -79,65 +68,40 @@ DB_HOST=127.0.0.1
 DB_PORT=5432
 DB_USER=postgres
 DB_PASSWORD=password_postgres_anda
-DB_NAME=pos_posh
+DB_NAME=pos_elvisyam
 DB_SSL=disable
 
-JWT_SECRET=super_secret_jwt_key_posh_2026
-UPLOADS_DIR=/www/wwwroot/posh.web.id/uploads
+JWT_SECRET=super_secret_jwt_key_elvisyam_2026
+UPLOADS_DIR=/www/wwwroot/pos.elvisyam.com/uploads
 EOF
 
 # Compile binary Go
 go build -o server ./cmd/api/main.go
 chmod +x server
-mkdir -p /www/wwwroot/posh.web.id/uploads
-```
-
-#### B. Konfigurasi Backend tokoryo.web.id (`PORT=5002`, `DB_NAME=pos_tokoryo`)
-```bash
-cd /www/wwwroot/tokoryo.web.id/backend
-
-cat << 'EOF' > .env
-PORT=5002
-GIN_MODE=release
-NODE_ENV=production
-
-DB_HOST=127.0.0.1
-DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=password_postgres_anda
-DB_NAME=pos_tokoryo
-DB_SSL=disable
-
-JWT_SECRET=super_secret_jwt_key_tokoryo_2026
-UPLOADS_DIR=/www/wwwroot/tokoryo.web.id/uploads
-EOF
-
-# Compile binary Go
-go build -o server ./cmd/api/main.go
-chmod +x server
-mkdir -p /www/wwwroot/tokoryo.web.id/uploads
+mkdir -p /www/wwwroot/pos.elvisyam.com/uploads
+chmod -R 777 /www/wwwroot/pos.elvisyam.com/uploads
 ```
 
 ---
 
 ### 5️⃣ Jalankan Backend Menggunakan Systemd Service
 
-#### Service 1: `pos-posh.service`
-Buat file service:
+Buat file service systemd:
 ```bash
-sudo nano /etc/systemd/system/pos-posh.service
+sudo nano /etc/systemd/system/pos-elvisyam.service
 ```
-Isikan:
+
+Isikan konfigurasi berikut:
 ```ini
 [Unit]
-Description=POS POSH Go Backend Service
+Description=POS Elvisyam Go Backend Service
 After=network.target postgresql.service
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/www/wwwroot/posh.web.id/backend
-ExecStart=/www/wwwroot/posh.web.id/backend/server
+WorkingDirectory=/www/wwwroot/pos.elvisyam.com/backend
+ExecStart=/www/wwwroot/pos.elvisyam.com/backend/server
 Restart=always
 RestartSec=5s
 Environment=GIN_MODE=release
@@ -146,51 +110,25 @@ Environment=GIN_MODE=release
 WantedBy=multi-user.target
 ```
 
-#### Service 2: `pos-tokoryo.service`
-Buat file service:
-```bash
-sudo nano /etc/systemd/system/pos-tokoryo.service
-```
-Isikan:
-```ini
-[Unit]
-Description=POS TokoRyo Go Backend Service
-After=network.target postgresql.service
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/www/wwwroot/tokoryo.web.id/backend
-ExecStart=/www/wwwroot/tokoryo.web.id/backend/server
-Restart=always
-RestartSec=5s
-Environment=GIN_MODE=release
-
-[Install]
-WantedBy=multi-user.target
-```
-
-#### Aktifkan & Jalankan Kedua Service:
+Aktifkan & Jalankan Service:
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable pos-posh pos-tokoryo
-sudo systemctl start pos-posh pos-tokoryo
+sudo systemctl enable pos-elvisyam
+sudo systemctl start pos-elvisyam
 
-# Verifikasi status kedua service
-sudo systemctl status pos-posh --no-pager
-sudo systemctl status pos-tokoryo --no-pager
+# Verifikasi status service
+sudo systemctl status pos-elvisyam --no-pager
 ```
 
 ---
 
-### 6️⃣ Konfigurasi Nginx & Website (di aaPanel / Nginx)
+### 6️⃣ Konfigurasi Nginx / aaPanel Website
 
-#### A. Website `posh.web.id`
 1. Buka menu **Website** → **Add site**:
-   - **Domain**: `posh.web.id` dan `www.posh.web.id`
-   - **Document Root**: `/www/wwwroot/posh.web.id/dist`
+   - **Domain**: `pos.elvisyam.com`
+   - **Document Root**: `/www/wwwroot/pos.elvisyam.com/dist`
 2. Pasang **SSL (Let's Encrypt)**.
-3. Buka tab **Config file** / Nginx config, masukkan konfigurasi berikut di dalam blok `server { ... }`:
+3. Buka tab **Config file** / Nginx config, masukkan konfigurasi reverse proxy berikut di dalam blok `server { ... }`:
 
 ```nginx
     # 1. Frontend SPA routing
@@ -212,67 +150,27 @@ sudo systemctl status pos-tokoryo --no-pager
 
     # 3. Static Files Uploads
     location /uploads/ {
-        alias /www/wwwroot/posh.web.id/uploads/;
+        alias /www/wwwroot/pos.elvisyam.com/uploads/;
         expires 30d;
         access_log off;
     }
 ```
 
----
-
-#### B. Website `tokoryo.web.id`
-1. Buka menu **Website** → **Add site**:
-   - **Domain**: `tokoryo.web.id` dan `www.tokoryo.web.id`
-   - **Document Root**: `/www/wwwroot/tokoryo.web.id/dist`
-2. Pasang **SSL (Let's Encrypt)**.
-3. Buka tab **Config file** / Nginx config, masukkan konfigurasi berikut di dalam blok `server { ... }`:
-
-```nginx
-    # 1. Frontend SPA routing
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # 2. Proxy API ke Backend Go (Port 5002)
-    location /api/ {
-        proxy_pass http://127.0.0.1:5002;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # 3. Static Files Uploads
-    location /uploads/ {
-        alias /www/wwwroot/tokoryo.web.id/uploads/;
-        expires 30d;
-        access_log off;
-    }
-```
-
-Simpan dan reload Nginx (`nginx -s reload`).
+Simpan dan reload Nginx (`sudo nginx -s reload`).
 
 ---
 
-## 🔄 Skrip Update Otomatis di Server
+## 🔄 Update & Deploy Otomatis Menggunakan `deploy.sh`
 
-Jika ada update kode dari GitHub, Anda cukup menjalankan:
+Setiap kali ada pembaruan kode dari GitHub di masa mendatang, cukup jalankan:
 
 ```bash
-# Update Posh
-cd /www/wwwroot/posh.web.id
-git pull origin main
-npm run build
-cd backend && go build -o server ./cmd/api/main.go
-sudo systemctl restart pos-posh
-
-# Update TokoRyo
-cd /www/wwwroot/tokoryo.web.id
-git pull origin main
-npm run build
-cd backend && go build -o server ./cmd/api/main.go
-sudo systemctl restart pos-tokoryo
+cd /www/wwwroot/pos.elvisyam.com
+bash deploy.sh
 ```
+
+Skrip `deploy.sh` akan otomatis:
+1. Menarik kode terbaru dari GitHub (`main`).
+2. Build frontend React Vite ke `dist/`.
+3. Kompilasi ulang binary backend Go (`server`).
+4. Restart service `pos-elvisyam` secara instan.

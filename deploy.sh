@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================================
-# 🚀 Skrip Update & Deploy Otomatis (POS Multi-Domain)
+# 🚀 Skrip Update & Deploy Otomatis (pos.elvisyam.com)
 # ==========================================================
 set -e
 
@@ -11,13 +11,12 @@ CYAN='\033[0;36m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Dapatkan direktori root script & nama folder
+# Dapatkan direktori root script
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FOLDER_NAME="$(basename "$ROOT_DIR")"
 cd "$ROOT_DIR"
 
 echo -e "${CYAN}====================================================${NC}"
-echo -e "${CYAN}   🚀 Memulai Update & Deployment POS ($FOLDER_NAME)${NC}"
+echo -e "${CYAN}   🚀 Memulai Deployment: pos.elvisyam.com          ${NC}"
 echo -e "${CYAN}====================================================${NC}"
 
 # ----------------------------------------------------------
@@ -43,7 +42,7 @@ fi
 # ----------------------------------------------------------
 # 3. COMPILE BACKEND GO (backend/)
 # ----------------------------------------------------------
-echo -e "\n${YELLOW}⚙️ [3/4] Mengompilasi Backend Go (backend/)...${NC}"
+echo -e "\n${YELLOW}⚙️ [3/4] Mengompilasi Backend Go...${NC}"
 if command -v go &> /dev/null; then
     cd "$ROOT_DIR/backend"
     go build -o server ./cmd/api/main.go
@@ -59,15 +58,13 @@ else
 fi
 
 # ----------------------------------------------------------
-# 4. RESTART BACKEND SERVICE (systemd / aaPanel / Supervisor)
+# 4. RESTART BACKEND SERVICE (pos-elvisyam / systemd / aaPanel)
 # ----------------------------------------------------------
-echo -e "\n${YELLOW}🔄 [4/4] Merestart Layanan Backend POS...${NC}"
+echo -e "\n${YELLOW}🔄 [4/4] Merestart Layanan Backend pos-elvisyam...${NC}"
 
 RESTARTED=false
 
-# Daftar kemungkinan nama service systemd
-DOMAIN_PREFIX="${FOLDER_NAME%%.*}"
-SERVICES=("pos-${DOMAIN_PREFIX}" "pos-${FOLDER_NAME}" "pos-tokoryo" "pos-posh" "pos-elvisyam" "pos-hana")
+SERVICES=("pos-elvisyam" "pos-elvisyam.service" "pos-hana" "pos-tokoryo" "pos-posh")
 
 for SVC in "${SERVICES[@]}"; do
     if systemctl is-active --quiet "$SVC" 2>/dev/null; then
@@ -78,11 +75,11 @@ for SVC in "${SERVICES[@]}"; do
     fi
 done
 
-# Jika bukan via systemd (misal: aaPanel Go Project Daemon / Supervisor / Process PID)
+# Fallback jika berjalan via Process PID / aaPanel Go Daemon / Supervisor
 if [ "$RESTARTED" = false ]; then
     PID=$(pgrep -f "$ROOT_DIR/backend/server|$ROOT_DIR/backend/backend|$ROOT_DIR/server" | grep -v "$$" | head -n 1 || true)
     if [ -z "$PID" ]; then
-        PID=$(pgrep -f "backend/server|backend/backend" | grep -v "$$" | head -n 1 || true)
+        PID=$(pgrep -f "pos.elvisyam.com" | grep -v "$$" | head -n 1 || true)
     fi
 
     if [ -n "$PID" ]; then
@@ -92,11 +89,10 @@ if [ "$RESTARTED" = false ]; then
         echo -e "${GREEN}✅ Proses backend telah di-trigger restart oleh daemon/supervisor!${NC}"
         RESTARTED=true
     else
-        echo -e "${YELLOW}ℹ️ Layanan backend tidak berjalan via systemd atau PID terdaftar.${NC}"
-        echo -e "${YELLOW}ℹ️ Silakan periksa atau restart service di menu Go Project aaPanel / systemctl jika perlu.${NC}"
+        echo -e "${YELLOW}ℹ️ Silakan periksa atau restart service 'pos-elvisyam' di systemctl atau menu Go Project aaPanel.${NC}"
     fi
 fi
 
 echo -e "\n${CYAN}====================================================${NC}"
-echo -e "${GREEN}   🎉 Deployment Selesai & Aplikasi Siap Digunakan  ${NC}"
+echo -e "${GREEN}   🎉 Deployment pos.elvisyam.com Selesai & Aktif! ${NC}"
 echo -e "${CYAN}====================================================${NC}\n"
