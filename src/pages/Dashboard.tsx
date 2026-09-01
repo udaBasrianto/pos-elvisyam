@@ -753,6 +753,7 @@ const Dashboard = () => {
           transaction={{
             id: printingTransaction.id,
             customerName: printingTransaction.customerName,
+            createdAt: printingTransaction.createdAt,
             items: printingTransaction.items.map((i: any) => ({
               productName: i.productName,
               quantity: i.quantity,

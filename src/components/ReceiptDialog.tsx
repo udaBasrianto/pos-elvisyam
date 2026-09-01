@@ -38,6 +38,7 @@ interface TransactionData {
   changeAmount: number;
   earnedPoints?: number;
   accumulatedPoints?: number;
+  createdAt?: string | Date;
 }
 
 interface ReceiptDialogProps {
@@ -87,9 +88,11 @@ const ReceiptDialog = ({ open, onClose, transaction }: ReceiptDialogProps) => {
       ? (transaction.id.length > 16 && transaction.id.includes('-') ? transaction.id.slice(0, 8).toUpperCase() : transaction.id.toUpperCase())
       : 'STRUK';
 
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const txDate = transaction.createdAt
+      ? (typeof transaction.createdAt === 'string' ? new Date(transaction.createdAt) : transaction.createdAt)
+      : new Date();
+    const dateStr = txDate.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const timeStr = txDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
     const receiptPayload = {
       storeName: state.settings.businessName || "Toko Kami",
@@ -169,9 +172,11 @@ const ReceiptDialog = ({ open, onClose, transaction }: ReceiptDialogProps) => {
     const customerName = transaction.customerName || "Umum";
     const footerText = state.settings.receiptFooter;
 
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const txDate = transaction.createdAt
+      ? (typeof transaction.createdAt === 'string' ? new Date(transaction.createdAt) : transaction.createdAt)
+      : new Date();
+    const dateStr = txDate.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const timeStr = txDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
     const itemsHtml = transaction.items.map(item => `
       <div style="margin-bottom: 8px;">
@@ -374,6 +379,10 @@ const ReceiptDialog = ({ open, onClose, transaction }: ReceiptDialogProps) => {
 
   if (!transaction) return null;
 
+  const txDate = transaction.createdAt
+    ? (typeof transaction.createdAt === 'string' ? new Date(transaction.createdAt) : transaction.createdAt)
+    : new Date();
+
   const receiptData = {
     id: transaction.id,
     storeName: state.settings.businessName || "Toko Anda",
@@ -387,7 +396,7 @@ const ReceiptDialog = ({ open, onClose, transaction }: ReceiptDialogProps) => {
     paymentMethod: transaction.paymentMethod,
     paymentAmount: transaction.paymentAmount,
     changeAmount: transaction.changeAmount,
-    createdAt: new Date(),
+    createdAt: txDate,
     receiptFooter: state.settings.receiptFooter,
     earnedPoints: transaction.earnedPoints,
     accumulatedPoints: transaction.accumulatedPoints,

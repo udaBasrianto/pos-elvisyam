@@ -22,7 +22,7 @@ func ConnectDB(cfg *config.Config) (*sqlx.DB, error) {
 		if cfg.DBSSL == "true" || cfg.DBSSL == "require" {
 			sslmode = "require"
 		}
-		dsn = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		dsn = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s timezone=Asia/Jakarta",
 			cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName, sslmode)
 	}
 
@@ -41,6 +41,7 @@ func ConnectDB(cfg *config.Config) (*sqlx.DB, error) {
 		log.Printf("⚠️ Database connection ping warning: %v (will retry on queries)", err)
 	} else {
 		log.Println("✅ Connected to PostgreSQL database successfully")
+		_, _ = db.Exec("SET TIME ZONE 'Asia/Jakarta'")
 	}
 
 	DB = db

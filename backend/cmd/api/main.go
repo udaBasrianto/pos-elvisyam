@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"backend/internal/config"
 	"backend/internal/database"
@@ -27,6 +28,13 @@ import (
 )
 
 func main() {
+	// Set default timezone to Asia/Jakarta (WIB UTC+7)
+	if loc, err := time.LoadLocation("Asia/Jakarta"); err == nil {
+		time.Local = loc
+	} else {
+		time.Local = time.FixedZone("WIB", 7*3600)
+	}
+
 	// 1. Load configuration
 	cfg := config.LoadConfig()
 
