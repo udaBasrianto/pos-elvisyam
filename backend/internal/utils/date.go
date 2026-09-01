@@ -27,6 +27,8 @@ type WIBDateRanges struct {
 	YearEnd          string
 	Last7DaysStart   string
 	Last30DaysStart  string
+	LastMonthStart   string
+	LastMonthEnd     string
 	Last12MonthsStart string
 }
 
@@ -38,6 +40,9 @@ func GetWIBDateRanges() WIBDateRanges {
 
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, WIBLocation).Format("2006-01-02 15:04:05")
 	lastDayOfMonth := time.Date(now.Year(), now.Month()+1, 0, 23, 59, 59, 0, WIBLocation).Format("2006-01-02 15:04:05")
+
+	lastMonthStart := time.Date(now.Year(), now.Month()-1, 1, 0, 0, 0, 0, WIBLocation).Format("2006-01-02 15:04:05")
+	lastMonthEnd := time.Date(now.Year(), now.Month(), 0, 23, 59, 59, 0, WIBLocation).Format("2006-01-02 15:04:05")
 
 	yearStart := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, WIBLocation).Format("2006-01-02 15:04:05")
 	yearEnd := time.Date(now.Year(), 12, 31, 23, 59, 59, 0, WIBLocation).Format("2006-01-02 15:04:05")
@@ -56,6 +61,8 @@ func GetWIBDateRanges() WIBDateRanges {
 		TodayEnd:         todayEnd,
 		MonthStart:       monthStart,
 		MonthEnd:         lastDayOfMonth,
+		LastMonthStart:   lastMonthStart,
+		LastMonthEnd:     lastMonthEnd,
 		YearStart:        yearStart,
 		YearEnd:          yearEnd,
 		Last7DaysStart:   last7DaysStart,

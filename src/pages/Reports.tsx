@@ -107,7 +107,7 @@ const Reports = () => {
   const [manualPayables, setManualPayables] = useState<string>("0");
   const [showZakatGuide, setShowZakatGuide] = useState<boolean>(false);
 
-  const periodOptions = ["hari-ini", "7-hari", "30-hari", "90-hari", "tahun-ini", "kustom"];
+  const periodOptions = ["hari-ini", "7-hari", "30-hari", "90-hari", "bulan-lalu", "tahun-ini", "kustom"];
 
   // Map period to API format
   const getPeriodParam = () => {
@@ -116,6 +116,7 @@ const Reports = () => {
       case "7-hari": return "week";
       case "30-hari": return "month";
       case "90-hari": return "month"; // 90 days use month filter
+      case "bulan-lalu": return "last_month";
       case "tahun-ini": return "year";
       default: return "month";
     }
@@ -221,6 +222,12 @@ const Reports = () => {
         startDate.setDate(today.getDate() - 89);
         startDate.setHours(0, 0, 0, 0);
         break;
+      case "bulan-lalu":
+        startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        startDate.setHours(0, 0, 0, 0);
+        const endOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+        endOfLastMonth.setHours(23, 59, 59, 999);
+        return { startDate, endDate: endOfLastMonth };
       case "tahun-ini":
         startDate = new Date(today.getFullYear(), 0, 1);
         startDate.setHours(0, 0, 0, 0);
@@ -1028,7 +1035,8 @@ const Reports = () => {
                   period === "7-hari" ? "7 Hari" :
                     period === "30-hari" ? "30 Hari" :
                       period === "90-hari" ? "90 Hari" :
-                        period === "tahun-ini" ? "Tahun Ini" : "Kustom"}
+                        period === "bulan-lalu" ? "Bulan Lalu" :
+                          period === "tahun-ini" ? "Tahun Ini" : "Kustom"}
               </Button>
             ))}
             {selectedPeriod === "kustom" && (

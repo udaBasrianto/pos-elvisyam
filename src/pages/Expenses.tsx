@@ -395,6 +395,7 @@ const Expenses = () => {
                                     {selectedPeriod === "today" ? "Pengeluaran Hari Ini" :
                                      selectedPeriod === "week" ? "Pengeluaran 7 Hari" :
                                      selectedPeriod === "year" ? "Pengeluaran Tahun Ini" :
+                                     selectedPeriod === "last_month" ? "Pengeluaran Bulan Lalu" :
                                      selectedPeriod === "all" ? "Semua Pengeluaran" :
                                      selectedPeriod === "custom" ? "Pengeluaran Kustom" : "Pengeluaran Bulan Ini"}
                                 </p>
@@ -460,6 +461,7 @@ const Expenses = () => {
                                 <SelectItem value="today">Hari Ini</SelectItem>
                                 <SelectItem value="week">7 Hari Terakhir</SelectItem>
                                 <SelectItem value="month">Bulan Ini</SelectItem>
+                                <SelectItem value="last_month">Bulan Lalu</SelectItem>
                                 <SelectItem value="year">Tahun Ini</SelectItem>
                                 <SelectItem value="custom">📅 Kustom Tanggal</SelectItem>
                                 <SelectItem value="all">Semua Waktu</SelectItem>

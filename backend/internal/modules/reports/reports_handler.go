@@ -332,6 +332,9 @@ func (h *ReportsHandler) GetFinancialSummary(c *gin.Context) {
 	} else if period == "last7days" {
 		startStr = ranges.Last7DaysStart
 		endStr = ranges.TodayEnd
+	} else if period == "last_month" {
+		startStr = ranges.LastMonthStart
+		endStr = ranges.LastMonthEnd
 	} else if period == "year" {
 		startStr = ranges.YearStart
 		endStr = ranges.YearEnd
@@ -350,9 +353,15 @@ func (h *ReportsHandler) GetFinancialSummary(c *gin.Context) {
 	// 2. COGS (HPP)
 	var totalCOGS float64
 	_ = database.DB.Get(&totalCOGS, `
-		SELECT COALESCE(SUM(ti.quantity * ti.cost_price), 0)
+		SELECT COALESCE(SUM(ti.quantity * 
+			CASE 
+				WHEN COALESCE(ti.cost_price, 0) > 0 THEN ti.cost_price 
+				ELSE COALESCE(p.cost, 0) 
+			END
+		), 0)
 		FROM transaction_items ti
 		JOIN transactions t ON ti.transaction_id = t.id
+		LEFT JOIN products p ON ti.product_id = p.id
 		WHERE t.user_id = $1 AND t.status != 'void' AND t.created_at BETWEEN $2::timestamp AND $3::timestamp
 	`, tenantID, startStr, endStr)
 

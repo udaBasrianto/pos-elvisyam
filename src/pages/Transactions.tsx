@@ -91,7 +91,7 @@ const Transactions = () => {
 
   const statusOptions = ["semua", "completed", "pending", "cancelled", "refunded"];
   const paymentOptions = ["semua", "cash", "transfer", "ewallet", "credit"];
-  const dateOptions = ["semua", "hari-ini", "minggu-ini", "bulan-ini", "kustom"];
+  const dateOptions = ["semua", "hari-ini", "minggu-ini", "bulan-ini", "bulan-lalu", "kustom"];
 
   const filteredTransactions = state.transactions.filter(transaction => {
     const matchesSearch = 
@@ -120,6 +120,12 @@ const Transactions = () => {
           matchesDate = transactionDate.getMonth() === today.getMonth() && 
                        transactionDate.getFullYear() === today.getFullYear();
           break;
+        case "bulan-lalu": {
+          const lastMonthDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+          matchesDate = transactionDate.getMonth() === lastMonthDate.getMonth() &&
+                        transactionDate.getFullYear() === lastMonthDate.getFullYear();
+          break;
+        }
         case "kustom": {
           const startOk = customStartDate
             ? (() => { const s = new Date(customStartDate); s.setHours(0,0,0,0); return transactionDate >= s; })()
@@ -428,6 +434,7 @@ const Transactions = () => {
                 <SelectItem value="hari-ini">Hari Ini</SelectItem>
                 <SelectItem value="minggu-ini">7 Hari Ini</SelectItem>
                 <SelectItem value="bulan-ini">Bulan Ini</SelectItem>
+                <SelectItem value="bulan-lalu">Bulan Lalu</SelectItem>
               </SelectContent>
             </Select>
           </div>
