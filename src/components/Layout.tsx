@@ -130,6 +130,9 @@ const getPageHeaderInfo = (pathname: string) => {
   if (path.startsWith('/hardware-settings')) {
     return { title: 'Pengaturan Hardware', desc: 'Kelola printer thermal, barcode scanner, dan laci kasir' };
   }
+  if (path.startsWith('/storefront-settings')) {
+    return { title: 'Konfigurasi Toko Online', desc: 'Atur branding, logo, favicon, domain, tema, WhatsApp CS, dan ulasan storefront' };
+  }
   if (path.startsWith('/settings')) {
     return { title: 'Pengaturan Sistem', desc: 'Konfigurasi profil toko, struk, pajak, dan PWA' };
   }

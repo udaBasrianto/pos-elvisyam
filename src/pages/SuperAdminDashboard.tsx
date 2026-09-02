@@ -42,14 +42,8 @@ import {
     ArrowLeft,
     X,
     Check,
-    ListOrdered,
-    Shield,
     RefreshCw,
-    ExternalLink,
-    Wrench,
-    Scissors,
-    UtensilsCrossed,
-    Shirt
+    ExternalLink
 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
@@ -924,106 +918,6 @@ const SuperAdminDashboard = () => {
                                                         />
                                                     </div>
                                                 </div>
-
-                                                {/* Modul Jasa & Antrian Toggle */}
-                                                <label htmlFor="sub_service_queue" className="flex items-center justify-between p-3 rounded-xl border bg-primary/5 border-primary/20 cursor-pointer hover:bg-primary/10 transition-colors">
-                                                    <div className="space-y-0.5 pr-2 pointer-events-none">
-                                                        <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                                                            <ListOrdered className="w-4 h-4 text-primary shrink-0" />
-                                                            Modul Jasa & Antrian
-                                                        </div>
-                                                        <p className="text-[11px] text-muted-foreground">
-                                                            Buka fitur antrian tiket, TV display, dan progress pengerjaan.
-                                                        </p>
-                                                    </div>
-                                                    <input
-                                                        type="checkbox"
-                                                        id="sub_service_queue"
-                                                        checked={subFormData.service_queue_enabled}
-                                                        onChange={e => setSubFormData({...subFormData, service_queue_enabled: e.target.checked})}
-                                                        className="w-5 h-5 accent-primary rounded cursor-pointer shrink-0"
-                                                    />
-                                                </label>
-
-                                                {/* Workshop Module Toggle */}
-                                                <label htmlFor="sub_workshop_enabled" className="flex items-center justify-between p-3 rounded-xl border border-blue-500/20 bg-blue-50/50 dark:bg-blue-950/20 cursor-pointer hover:bg-blue-50/80 transition-colors">
-                                                    <div className="space-y-0.5 pr-2 pointer-events-none">
-                                                        <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                                                            <Wrench className="w-3.5 h-3.5 text-blue-600" />
-                                                            Modul Bengkel & Otomotif
-                                                        </div>
-                                                        <p className="text-[11px] text-muted-foreground">
-                                                            Buka fitur SPK/PKB, papan Stall, database kendaraan, riwayat servis & reminder oli.
-                                                        </p>
-                                                    </div>
-                                                    <input
-                                                        type="checkbox"
-                                                        id="sub_workshop_enabled"
-                                                        checked={subFormData.workshop_enabled}
-                                                        onChange={e => setSubFormData({...subFormData, workshop_enabled: e.target.checked})}
-                                                        className="w-5 h-5 accent-blue-600 rounded cursor-pointer shrink-0"
-                                                    />
-                                                </label>
-
-                                                {/* Barbershop & Salon Module Toggle */}
-                                                <label htmlFor="sub_barbershop_enabled" className="flex items-center justify-between p-3 rounded-xl border border-purple-500/20 bg-purple-50/50 dark:bg-purple-950/20 cursor-pointer hover:bg-purple-50/80 transition-colors">
-                                                    <div className="space-y-0.5 pr-2 pointer-events-none">
-                                                        <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                                                            <Scissors className="w-3.5 h-3.5 text-purple-600" />
-                                                            Modul Barbershop & Salon Premier
-                                                        </div>
-                                                        <p className="text-[11px] text-muted-foreground">
-                                                            Buka kalender booking slot jam, status kursi kapster, rekam jejak gaya rambut & komisi.
-                                                        </p>
-                                                    </div>
-                                                    <input
-                                                        type="checkbox"
-                                                        id="sub_barbershop_enabled"
-                                                        checked={subFormData.barbershop_enabled}
-                                                        onChange={e => setSubFormData({...subFormData, barbershop_enabled: e.target.checked})}
-                                                        className="w-5 h-5 accent-purple-600 rounded cursor-pointer shrink-0"
-                                                    />
-                                                </label>
-
-                                                {/* F&B Cafe & Restaurant Module Toggle */}
-                                                <label htmlFor="sub_fnb_enabled" className="flex items-center justify-between p-3 rounded-xl border border-pink-500/20 bg-pink-50/50 dark:bg-pink-950/20 cursor-pointer hover:bg-pink-50/80 transition-colors">
-                                                    <div className="space-y-0.5 pr-2 pointer-events-none">
-                                                        <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                                                            <UtensilsCrossed className="w-3.5 h-3.5 text-pink-600" />
-                                                            Modul Cafe, Coffee Shop & Restoran (F&B)
-                                                        </div>
-                                                        <p className="text-[11px] text-muted-foreground">
-                                                            Buka denah meja, KDS layar dapur/bar, resep & potong stok bahan baku (BOM), modifiers, dan self-order QR.
-                                                        </p>
-                                                    </div>
-                                                    <input
-                                                        type="checkbox"
-                                                        id="sub_fnb_enabled"
-                                                        checked={subFormData.fnb_enabled}
-                                                        onChange={e => setSubFormData({...subFormData, fnb_enabled: e.target.checked})}
-                                                        className="w-5 h-5 accent-pink-600 rounded cursor-pointer shrink-0"
-                                                    />
-                                                </label>
-
-                                                {/* Laundry & Dry Clean Module Toggle */}
-                                                <label htmlFor="sub_laundry_enabled" className="flex items-center justify-between p-3 rounded-xl border border-sky-500/20 bg-sky-50/50 dark:bg-sky-950/20 cursor-pointer hover:bg-sky-50/80 transition-colors">
-                                                    <div className="space-y-0.5 pr-2 pointer-events-none">
-                                                        <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                                                            <Shirt className="w-3.5 h-3.5 text-sky-600" />
-                                                            Modul Laundry & Dry Clean
-                                                        </div>
-                                                        <p className="text-[11px] text-muted-foreground">
-                                                            Buka kasir kiloan/satuan, papan Kanban pengerjaan, pilihan parfum, penempatan nomor rak, & WA reminder.
-                                                        </p>
-                                                    </div>
-                                                    <input
-                                                        type="checkbox"
-                                                        id="sub_laundry_enabled"
-                                                        checked={subFormData.laundry_enabled}
-                                                        onChange={e => setSubFormData({...subFormData, laundry_enabled: e.target.checked})}
-                                                        className="w-5 h-5 accent-sky-600 rounded cursor-pointer shrink-0"
-                                                    />
-                                                </label>
 
                                                 <Button
                                                     onClick={handleSaveSubscription}

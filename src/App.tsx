@@ -34,18 +34,20 @@ import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import TenantSummaries from "./pages/TenantSummaries";
 import TenantManagement from "./pages/TenantManagement";
 import OnlineOrders from "./pages/OnlineOrders";
-import Store from "./pages/Store";
-import StoreCart from "./pages/StoreCart";
-import StoreCheckout from "./pages/StoreCheckout";
-import StoreProductDetail from "./pages/StoreProductDetail";
-import StoreCategories from "./pages/StoreCategories";
-import StoreProfile from "./pages/StoreProfile";
 import NotFound from "./pages/NotFound";
 import Consignment from "./pages/Consignment";
 import { UserRole } from "@/contexts/AuthContext";
-import { StoreProvider } from "@/contexts/StoreContext";
-import { StoreAuthProvider } from "@/contexts/StoreAuthContext";
-import StoreAuth from "./pages/StoreAuth";
+import { 
+  StoreHome as Store, 
+  StoreCart, 
+  StoreCheckout, 
+  StoreProductDetail, 
+  StoreCategories, 
+  StoreProfile, 
+  StoreAuth,
+  StoreProvider,
+  StoreAuthProvider
+} from "@/storefront";
 import HardwareSettings from "./pages/HardwareSettings";
 import CustomerDisplay from "./pages/CustomerDisplay";
 import StockOpname from "./pages/StockOpname";
@@ -53,12 +55,14 @@ import Purchases from "./pages/Purchases";
 import Payroll from "./pages/Payroll";
 import Assets from "./pages/Assets";
 import BarcodePrint from "./pages/BarcodePrint";
+import StorefrontSettings from "./pages/StorefrontSettings";
 
 import { HardwareProvider } from "@/contexts/HardwareContext";
 import { Loader2 } from "lucide-react";
 import { useEffect } from "react";
 import api from "@/lib/api";
 import { updatePageMeta } from "@/utils/seo";
+import { getCustomDomainInfo } from "@/utils/domain";
 
 const queryClient = new QueryClient();
 
@@ -181,6 +185,71 @@ function DashboardRouter() {
 }
 
 function AppRoutes() {
+  const customDomain = getCustomDomainInfo();
+
+  // If accessed via custom domain (e.g. tokosaya.com or www.tokosaya.com)
+  if (customDomain.isCustomDomain) {
+    return (
+      <Routes>
+        {/* Custom Domain Storefront Public Routes */}
+        <Route path="/" element={<Store />} />
+        <Route path="/auth" element={<StoreAuth />} />
+        <Route path="/categories" element={<StoreCategories />} />
+        <Route path="/product/:id" element={<StoreProductDetail />} />
+        <Route path="/cart" element={<StoreCart />} />
+        <Route path="/checkout" element={<StoreCheckout />} />
+        <Route path="/profile" element={<StoreProfile />} />
+        <Route path="/account" element={<StoreProfile />} />
+
+        {/* Allow Staff / Store Owner to login to POS even from custom domain */}
+        <Route path="/admin" element={<AuthRoute><Auth /></AuthRoute>} />
+        <Route path="/pos-login" element={<AuthRoute><Auth /></AuthRoute>} />
+        <Route
+          path="/dashboard"
+          element={
+            <RoleProtectedRoute roles={['admin', 'manager', 'super_admin']}>
+              <Layout>
+                <DashboardRouter />
+              </Layout>
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/pos"
+          element={
+            <RoleProtectedRoute roles={['admin', 'manager', 'kasir']}>
+              <Layout>
+                <POS />
+              </Layout>
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <RoleProtectedRoute roles={['admin']}>
+              <Layout>
+                <Settings />
+              </Layout>
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/storefront-settings"
+          element={
+            <RoleProtectedRoute roles={['admin']}>
+              <Layout>
+                <StorefrontSettings />
+              </Layout>
+            </RoleProtectedRoute>
+          }
+        />
+
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    );
+  }
+
   return (
     <Routes>
       <Route
@@ -435,6 +504,16 @@ function AppRoutes() {
           <RoleProtectedRoute roles={['admin']}>
             <Layout>
               <Settings />
+            </Layout>
+          </RoleProtectedRoute>
+        }
+      />
+      <Route
+        path="/storefront-settings"
+        element={
+          <RoleProtectedRoute roles={['admin']}>
+            <Layout>
+              <StorefrontSettings />
             </Layout>
           </RoleProtectedRoute>
         }

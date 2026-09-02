@@ -5,7 +5,7 @@ import { LucideIcon } from "lucide-react";
 interface ColoredCardProps extends HTMLAttributes<HTMLDivElement> {
     title?: string;
     icon?: LucideIcon;
-    iconColor?: "green" | "blue" | "purple" | "orange" | "emerald" | "red" | "yellow" | "primary";
+    iconColor?: "green" | "blue" | "purple" | "orange" | "emerald" | "red" | "yellow" | "amber" | "pink" | "primary";
     children?: React.ReactNode;
 }
 
@@ -17,6 +17,8 @@ const cardBgColors = {
     emerald: "bg-emerald-50 dark:bg-emerald-950/20",
     red: "bg-red-50 dark:bg-red-950/20",
     yellow: "bg-yellow-50 dark:bg-yellow-950/20",
+    amber: "bg-amber-50 dark:bg-amber-950/20",
+    pink: "bg-pink-50 dark:bg-pink-950/20",
     primary: "bg-primary/5 dark:bg-primary/10",
 };
 
@@ -28,6 +30,8 @@ const iconWatermarkColors = {
     emerald: "text-emerald-500/10",
     red: "text-red-500/10",
     yellow: "text-yellow-500/10",
+    amber: "text-amber-500/10",
+    pink: "text-pink-500/10",
     primary: "text-primary/10",
 };
 
@@ -39,6 +43,8 @@ const iconBadgeColors = {
     emerald: "bg-emerald-500 text-white",
     red: "bg-red-500 text-white",
     yellow: "bg-yellow-500 text-white",
+    amber: "bg-amber-500 text-white",
+    pink: "bg-pink-500 text-white",
     primary: "bg-primary text-primary-foreground",
 };
 
@@ -98,7 +104,7 @@ interface MetricCardProps extends HTMLAttributes<HTMLDivElement> {
     title: string;
     value: string | number;
     icon?: LucideIcon;
-    iconColor?: "green" | "blue" | "purple" | "orange" | "emerald" | "red" | "yellow" | "primary";
+    iconColor?: "green" | "blue" | "purple" | "orange" | "emerald" | "red" | "yellow" | "amber" | "pink" | "primary";
     subtitle?: string;
 }
 

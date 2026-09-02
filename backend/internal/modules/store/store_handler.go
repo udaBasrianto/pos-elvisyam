@@ -3,7 +3,9 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"html"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,6 +42,8 @@ func (h *StoreHandler) RegisterRoutes(r *gin.RouterGroup) {
 	r.GET("/store/products/:id", h.GetStoreProductByID)
 	r.GET("/store/categories", h.GetStoreCategories)
 	r.GET("/store/orders/track/:order_id", h.TrackOrder)
+	r.GET("/store/og/:slug/product/:id", h.GetProductOpenGraphHTML)
+	r.GET("/store/og/product/:id", h.GetProductOpenGraphHTML)
 
 	// Cart session
 	r.GET("/store/cart/:sessionId", h.GetCart)
@@ -462,12 +466,30 @@ func (h *StoreHandler) ChangeCustomerPassword(c *gin.Context) {
 // -------------------------------------------------------------
 
 func (h *StoreHandler) GetStoreInfoBySlug(c *gin.Context) {
-	slug := c.Param("slug")
+	rawParam := strings.TrimSpace(strings.ToLower(c.Param("slug")))
+	rawParam = strings.TrimPrefix(rawParam, "https://")
+	rawParam = strings.TrimPrefix(rawParam, "http://")
+	rawParam = strings.TrimRight(rawParam, "/")
+	if idx := strings.Index(rawParam, ":"); idx != -1 {
+		rawParam = rawParam[:idx]
+	}
+	cleanWithoutWww := strings.TrimPrefix(rawParam, "www.")
+	cleanWithWww := "www." + cleanWithoutWww
+
+	host := strings.TrimSpace(strings.ToLower(c.Request.Host))
+	if fHost := c.GetHeader("X-Forwarded-Host"); fHost != "" {
+		host = strings.TrimSpace(strings.ToLower(fHost))
+	}
+	if idx := strings.Index(host, ":"); idx != -1 {
+		host = host[:idx]
+	}
+	hostWithoutWww := strings.TrimPrefix(host, "www.")
 
 	type StoreInfo struct {
 		TenantID           string  `json:"tenant_id" db:"tenant_id"`
 		FullName           *string `json:"full_name" db:"full_name"`
 		ShopSlug           string  `json:"shop_slug" db:"shop_slug"`
+		CustomDomain       *string `json:"custom_domain" db:"custom_domain"`
 		BusinessName       *string `json:"business_name" db:"business_name"`
 		OnlineStoreEnabled bool    `json:"online_store_enabled" db:"online_store_enabled"`
 		LogoURL            *string `json:"logo_url" db:"logo_url"`
@@ -484,22 +506,28 @@ func (h *StoreHandler) GetStoreInfoBySlug(c *gin.Context) {
 		FooterText         *string `json:"footer_text" db:"footer_text"`
 		StoreReviews       *string `json:"store_reviews" db:"store_reviews"`
 		StoreFeatures      *string `json:"store_features" db:"store_features"`
+		FaviconURL         *string `json:"favicon_url" db:"favicon_url"`
 	}
 
 	var info StoreInfo
 	err := database.DB.Get(&info, `
-		SELECT u.id as tenant_id, u.full_name, u.shop_slug,
+		SELECT u.id as tenant_id, u.full_name, u.shop_slug, s.custom_domain,
 		       s.business_name, COALESCE(s.online_store_enabled, true) as online_store_enabled,
 		       s.logo_url, s.business_logo, s.description,
 		       COALESCE(s.tagline, 'Sehat Alami, Hidup Harmoni') as tagline,
 		       COALESCE(s.theme_color, 'emerald') as theme_color,
 		       s.business_phone, s.business_email, s.business_address,
 		       s.instagram_url, s.facebook_url, s.whatsapp_number, s.footer_text,
-		       s.store_reviews, s.store_features
+		       s.store_reviews, s.store_features, s.favicon_url
 		FROM users u
 		LEFT JOIN settings s ON u.id = s.user_id
-		WHERE u.shop_slug = $1
-	`, slug)
+		WHERE u.shop_slug = $1 
+		   OR LOWER(s.custom_domain) = $1 
+		   OR LOWER(s.custom_domain) = $2
+		   OR LOWER(s.custom_domain) = $3
+		   OR LOWER(s.custom_domain) = $4
+		LIMIT 1
+	`, rawParam, cleanWithoutWww, cleanWithWww, hostWithoutWww)
 
 	if err != nil {
 		utils.RespondError(c, http.StatusNotFound, "Toko tidak ditemukan")
@@ -1033,3 +1061,208 @@ func (h *StoreHandler) AdminUpdateOrderStatus(c *gin.Context) {
 
 	utils.RespondSuccess(c, "Status pesanan berhasil diperbarui", gin.H{"success": true})
 }
+
+func (h *StoreHandler) GetProductOpenGraphHTML(c *gin.Context) {
+	slug := c.Param("slug")
+	productID := c.Param("id")
+
+	// 1. Fetch Product
+	type ProdData struct {
+		ID          string  `db:"id"`
+		UserID      string  `db:"user_id"`
+		Name        string  `db:"name"`
+		Description *string `db:"description"`
+		Price       float64 `db:"price"`
+		Image       *string `db:"image"`
+		Category    *string `db:"category_name"`
+		Stock       int     `db:"stock"`
+	}
+
+	var prod ProdData
+	err := database.DB.Get(&prod, `
+		SELECT p.id, p.user_id, p.name, p.description, p.price, p.image, p.stock,
+		       c.name as category_name
+		FROM products p
+		LEFT JOIN categories c ON p.category_id = c.id
+		WHERE p.is_active = true AND (
+			p.id = $1 OR 
+			(p.sku IS NOT NULL AND p.sku = $1) OR 
+			(p.barcode IS NOT NULL AND p.barcode = $1)
+		)
+		LIMIT 1
+	`, productID)
+
+	if err != nil {
+		c.String(http.StatusNotFound, "Produk tidak ditemukan")
+		return
+	}
+
+	// 2. Fetch Store / Tenant Info
+	type TenantData struct {
+		ShopSlug     *string `db:"shop_slug"`
+		BusinessName *string `db:"business_name"`
+		Description  *string `db:"description"`
+		LogoURL      *string `db:"logo_url"`
+		CustomDomain *string `db:"custom_domain"`
+		FaviconURL   *string `db:"favicon_url"`
+	}
+
+	var tenant TenantData
+	_ = database.DB.Get(&tenant, `
+		SELECT u.shop_slug, s.business_name, s.description, s.logo_url, s.custom_domain, s.favicon_url
+		FROM users u
+		LEFT JOIN settings s ON u.id = s.user_id
+		WHERE u.id = $1
+		LIMIT 1
+	`, prod.UserID)
+
+	storeName := "Toko Online"
+	if tenant.BusinessName != nil && *tenant.BusinessName != "" {
+		storeName = *tenant.BusinessName
+	}
+
+	shopSlug := ""
+	if slug != "" {
+		shopSlug = slug
+	} else if tenant.ShopSlug != nil {
+		shopSlug = *tenant.ShopSlug
+	}
+
+	formattedPrice := fmt.Sprintf("%.0f", prod.Price)
+	desc := fmt.Sprintf("Beli %s di %s dengan harga Rp %s. Produk original, kualitas terjamin dan pengiriman cepat.", 
+		prod.Name, 
+		storeName, 
+		formattedPrice,
+	)
+	if prod.Description != nil && *prod.Description != "" {
+		desc = *prod.Description
+		if len(desc) > 220 {
+			desc = desc[:217] + "..."
+		}
+	}
+
+	proto := "http"
+	if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
+		proto = "https"
+	}
+
+	imageURL := ""
+	if prod.Image != nil && *prod.Image != "" {
+		imageURL = *prod.Image
+		if !strings.HasPrefix(imageURL, "http") {
+			imageURL = fmt.Sprintf("%s://%s%s", proto, c.Request.Host, imageURL)
+		}
+	} else if tenant.LogoURL != nil && *tenant.LogoURL != "" {
+		imageURL = *tenant.LogoURL
+		if !strings.HasPrefix(imageURL, "http") {
+			imageURL = fmt.Sprintf("%s://%s%s", proto, c.Request.Host, imageURL)
+		}
+	}
+
+	faviconURL := "/logo.svg"
+	if tenant.FaviconURL != nil && *tenant.FaviconURL != "" {
+		faviconURL = *tenant.FaviconURL
+		if !strings.HasPrefix(faviconURL, "http") {
+			faviconURL = fmt.Sprintf("%s://%s%s", proto, c.Request.Host, faviconURL)
+		}
+	} else if tenant.LogoURL != nil && *tenant.LogoURL != "" {
+		faviconURL = imageURL
+	}
+
+	canonicalURL := fmt.Sprintf("%s://%s/%s/product/%s", proto, c.Request.Host, shopSlug, prod.ID)
+	if shopSlug == "" {
+		canonicalURL = fmt.Sprintf("%s://%s/product/%s", proto, c.Request.Host, prod.ID)
+	}
+
+	title := fmt.Sprintf("%s - Rp %s | %s", prod.Name, formattedPrice, storeName)
+
+	availability := "https://schema.org/InStock"
+	if prod.Stock <= 0 {
+		availability = "https://schema.org/OutOfStock"
+	}
+
+	htmlContent := fmt.Sprintf(`<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>%s</title>
+    <meta name="description" content="%s">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="%s">
+
+    <!-- Open Graph / WhatsApp / Facebook / Telegram / LinkedIn / Discord -->
+    <meta property="og:type" content="product">
+    <meta property="og:site_name" content="%s">
+    <meta property="og:title" content="%s">
+    <meta property="og:description" content="%s">
+    <meta property="og:image" content="%s">
+    <meta property="og:image:secure_url" content="%s">
+    <meta property="og:url" content="%s">
+    <meta property="og:price:amount" content="%s">
+    <meta property="og:price:currency" content="IDR">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="%s">
+    <meta name="twitter:description" content="%s">
+    <meta name="twitter:image" content="%s">
+
+    <!-- Google Search Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org/",
+      "@type": "Product",
+      "name": %q,
+      "image": %q,
+      "description": %q,
+      "offers": {
+        "@type": "Offer",
+        "priceCurrency": "IDR",
+        "price": %q,
+        "availability": %q,
+        "url": %q
+      }
+    }
+    </script>
+
+    <!-- Client-side Redirect for human visitors -->
+    <meta http-equiv="refresh" content="0;url=%s">
+    <script>window.location.href = %q;</script>
+</head>
+<body style="font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f8fafc; color: #334155;">
+    <div style="text-align: center; padding: 24px; max-width: 400px;">
+        <h2 style="margin-bottom: 8px;">%s</h2>
+        <p style="color: #64748b; font-size: 14px;">Mengarahkan ke halaman produk...</p>
+        <a href="%s" style="display: inline-block; margin-top: 16px; padding: 10px 20px; background: #059669; color: white; border-radius: 9999px; text-decoration: none; font-weight: 600; font-size: 14px;">Buka Halaman Produk</a>
+    </div>
+</body>
+</html>`,
+		html.EscapeString(title),
+		html.EscapeString(desc),
+		html.EscapeString(faviconURL),
+		html.EscapeString(storeName),
+		html.EscapeString(title),
+		html.EscapeString(desc),
+		html.EscapeString(imageURL),
+		html.EscapeString(imageURL),
+		html.EscapeString(canonicalURL),
+		formattedPrice,
+		html.EscapeString(title),
+		html.EscapeString(desc),
+		html.EscapeString(imageURL),
+		prod.Name,
+		imageURL,
+		desc,
+		formattedPrice,
+		availability,
+		canonicalURL,
+		canonicalURL,
+		canonicalURL,
+		html.EscapeString(prod.Name),
+		canonicalURL,
+	)
+
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	c.String(http.StatusOK, htmlContent)
+}
+

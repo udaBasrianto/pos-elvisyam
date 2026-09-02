@@ -134,9 +134,17 @@ export function AppSidebar() {
         ...((isAdmin || isManager) ? [{ title: "Dashboard", url: "/dashboard", icon: Home }] : []),
         { title: "Kasir (POS)", url: "/pos", icon: ShoppingCart },
         { title: "Transaksi", url: "/transactions", icon: Receipt },
-        ...(appState.settings.onlineStoreEnabled ? [{ title: "Order Online", url: "/online-orders", icon: ShoppingBag, badge: pendingOrdersCount }] : []),
       ]
     },
+    ...((isAdmin || appState.settings.onlineStoreEnabled) ? [
+      {
+        label: "Toko Online (Storefront)",
+        items: [
+          ...(appState.settings.onlineStoreEnabled ? [{ title: "Order Online", url: "/online-orders", icon: ShoppingBag, badge: pendingOrdersCount }] : []),
+          ...(isAdmin ? [{ title: "Konfigurasi Toko", url: "/storefront-settings", icon: Globe }] : []),
+        ]
+      }
+    ] : []),
     {
       label: "Inventaris & Katalog",
       items: [

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ColoredCard } from "@/components/ui/colored-card";
@@ -45,6 +45,10 @@ import {
   Plus,
   Phone,
   Share2,
+  CheckCircle2,
+  AlertCircle,
+  Info,
+  ShieldCheck,
 } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -115,17 +119,32 @@ const Settings = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingSlug, setIsSavingSlug] = useState(false);
   const [copiedSlug, setCopiedSlug] = useState(false);
+  const [copiedDomain, setCopiedDomain] = useState(false);
+  const [copiedTargetHost, setCopiedTargetHost] = useState(false);
+  const [isVerifyingDomain, setIsVerifyingDomain] = useState(false);
+  const [verifyDomainResult, setVerifyDomainResult] = useState<{
+    success: boolean;
+    resolved: boolean;
+    isMatched: boolean;
+    domain: string;
+    cname?: string;
+    ips?: string[];
+    targetHost?: string;
+    message: string;
+  } | null>(null);
   const [activeTab, setActiveTab] = useState("store");
   const [formData, setFormData] = useState({
     ...state.settings,
-    shop_slug: user?.shop_slug || ''
+    shop_slug: user?.shop_slug || '',
+    custom_domain: state.settings?.custom_domain || '',
   });
 
   useEffect(() => {
     setFormData(prev => ({
       ...prev,
       ...state.settings,
-      shop_slug: prev.shop_slug || user?.shop_slug || ''
+      shop_slug: prev.shop_slug || user?.shop_slug || '',
+      custom_domain: state.settings?.custom_domain !== undefined ? state.settings.custom_domain : (prev.custom_domain || ''),
     }));
     if (state.settings.theme_color && state.settings.theme_color !== themeColor) {
       if (themeColors[state.settings.theme_color as ThemeColor]) {
@@ -216,6 +235,96 @@ const Settings = () => {
   const handleClearBg = () => {
     setFormData(prev => ({ ...prev, authBackground: '' }));
     toast.info("Background login direset ke default.");
+  };
+
+  // Logo & Favicon Upload State & Handlers
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const faviconInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isUploadingFavicon, setIsUploadingFavicon] = useState(false);
+
+  const handleUploadLogoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Ukuran file logo maksimal 5MB");
+      return;
+    }
+
+    const uploadData = new FormData();
+    uploadData.append('image', file);
+
+    setIsUploadingLogo(true);
+    try {
+      const res = await api.post('/products/upload-image', uploadData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      if (res.data?.imageUrl) {
+        setFormData(prev => ({ 
+          ...prev, 
+          logoUrl: res.data.imageUrl,
+          businessLogo: res.data.imageUrl 
+        }));
+        toast.success("Logo toko berhasil diupload! Klik 'Simpan Perubahan' untuk mengaktifkan.");
+      }
+    } catch (err: any) {
+      toast.error("Gagal mengupload logo toko");
+    } finally {
+      setIsUploadingLogo(false);
+      if (logoInputRef.current) logoInputRef.current.value = '';
+    }
+  };
+
+  const handleClearLogo = () => {
+    setFormData(prev => ({ ...prev, logoUrl: '', businessLogo: '' }));
+    toast.info("Logo toko dihapus. Klik 'Simpan Perubahan' untuk menerapkan.");
+  };
+
+  const handleUploadFaviconFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Ukuran file favicon maksimal 2MB");
+      return;
+    }
+
+    const uploadData = new FormData();
+    uploadData.append('image', file);
+
+    setIsUploadingFavicon(true);
+    try {
+      const res = await api.post('/products/upload-image', uploadData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      if (res.data?.imageUrl) {
+        setFormData(prev => ({ 
+          ...prev, 
+          faviconUrl: res.data.imageUrl,
+          favicon_url: res.data.imageUrl 
+        }));
+        // Instant visual feedback in current browser tab
+        let link = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = 'shortcut icon';
+          document.head.appendChild(link);
+        }
+        link.href = res.data.imageUrl;
+        toast.success("Favicon berhasil diupload! Klik 'Simpan Perubahan' untuk mengaktifkan.");
+      }
+    } catch (err: any) {
+      toast.error("Gagal mengupload favicon toko");
+    } finally {
+      setIsUploadingFavicon(false);
+      if (faviconInputRef.current) faviconInputRef.current.value = '';
+    }
+  };
+
+  const handleClearFavicon = () => {
+    setFormData(prev => ({ ...prev, faviconUrl: '', favicon_url: '' }));
+    toast.info("Favicon toko direset ke default.");
   };
 
   // Review List State & Handlers
@@ -463,6 +572,43 @@ const Settings = () => {
     setTimeout(() => setCopiedSlug(false), 2000);
   };
 
+  const handleCopyDomain = (domainStr: string) => {
+    const url = `https://${domainStr}`;
+    navigator.clipboard.writeText(url);
+    setCopiedDomain(true);
+    toast.success("Link custom domain disalin ke clipboard!");
+    setTimeout(() => setCopiedDomain(false), 2000);
+  };
+
+  const handleCopyTargetHost = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedTargetHost(true);
+    toast.success(`Target DNS (${text}) disalin!`);
+    setTimeout(() => setCopiedTargetHost(false), 2000);
+  };
+
+  const handleVerifyDomain = async () => {
+    const domain = formData.custom_domain?.trim();
+    if (!domain) {
+      toast.error("Masukkan nama domain terlebih dahulu (contoh: tokoberkah.com)");
+      return;
+    }
+    setIsVerifyingDomain(true);
+    try {
+      const res = await api.post('/settings/verify-domain', { domain });
+      setVerifyDomainResult(res.data);
+      if (res.data?.isMatched) {
+        toast.success(res.data?.message || "Domain berhasil terhubung ke server!");
+      } else {
+        toast.info(res.data?.message || "Hasil pengecekan DNS ditampilkan.");
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Gagal melakukan verifikasi DNS domain");
+    } finally {
+      setIsVerifyingDomain(false);
+    }
+  };
+
   const handleSave = async () => {
     try {
       setIsSaving(true);
@@ -493,7 +639,8 @@ const Settings = () => {
     if (window.confirm('Apakah Anda yakin ingin mengembalikan pengaturan ke default?')) {
       setFormData({
         ...state.settings,
-        shop_slug: user?.shop_slug || ''
+        shop_slug: user?.shop_slug || '',
+        custom_domain: state.settings?.custom_domain || ''
       });
       toast.info("Pengaturan direset");
     }
@@ -580,8 +727,26 @@ const Settings = () => {
           </TabsTrigger>
         </TabsList>
 
-        {/* TAB 1: PROFIL & TOKO ONLINE */}
+        {/* TAB 1: PROFIL & TOKO */}
         <TabsContent value="store" className="space-y-6 m-0">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent rounded-2xl border border-primary/20 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-primary text-primary-foreground shrink-0">
+                <Globe className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-foreground">Menu Khusus Konfigurasi Toko Online Tersedia!</h3>
+                <p className="text-xs text-muted-foreground">
+                  Kelola logo &amp; favicon, custom slug &amp; domain, tema warna, WhatsApp CS, dan ulasan di menu storefront terpisah.
+                </p>
+              </div>
+            </div>
+            <Button size="sm" onClick={() => navigate('/storefront-settings')} className="shrink-0 text-xs font-semibold cursor-pointer">
+              Buka Konfigurasi Toko Online
+              <ExternalLink className="w-3.5 h-3.5 ml-1.5" />
+            </Button>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Card 1: Identitas Bisnis & Brand */}
             <ColoredCard icon={Store} iconColor="blue" title="Informasi Identitas Bisnis &amp; Brand">
@@ -603,14 +768,9 @@ const Settings = () => {
                     <Input id="businessEmail" type="email" value={formData.businessEmail} onChange={(e) => handleInputChange('businessEmail', e.target.value)} placeholder="toko@domain.com" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="logoUrl" className="text-xs font-semibold">URL Logo Toko Online</Label>
-                    <Input id="logoUrl" value={formData.logoUrl || ''} onChange={(e) => handleInputChange('logoUrl', e.target.value)} placeholder="https://domain.com/logo.png" />
+                    <Label htmlFor="tagline" className="text-xs font-semibold">Slogan / Tagline Toko Online</Label>
+                    <Input id="tagline" value={formData.tagline || ''} onChange={(e) => handleInputChange('tagline', e.target.value)} placeholder="Contoh: Sehat Alami, Hidup Harmoni" />
                   </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="tagline" className="text-xs font-semibold">Slogan / Tagline Toko Online</Label>
-                  <Input id="tagline" value={formData.tagline || ''} onChange={(e) => handleInputChange('tagline', e.target.value)} placeholder="Contoh: Sehat Alami, Hidup Harmoni" />
                 </div>
 
                 <div className="space-y-1.5">
@@ -620,7 +780,224 @@ const Settings = () => {
 
                 <div className="space-y-1.5">
                   <Label htmlFor="businessAddress" className="text-xs font-semibold">Alamat Lengkap Toko</Label>
-                  <Textarea id="businessAddress" value={formData.businessAddress} onChange={(e) => handleInputChange('businessAddress', e.target.value)} placeholder="Alamat lengkap toko / usaha..." rows={3} />
+                  <Textarea id="businessAddress" value={formData.businessAddress} onChange={(e) => handleInputChange('businessAddress', e.target.value)} placeholder="Alamat lengkap toko / usaha..." rows={2} />
+                </div>
+
+                {/* Visual Branding Section: Logo & Favicon Upload */}
+                <div className="pt-3 border-t space-y-3">
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-primary" />
+                      Identitas Visual (Logo &amp; Favicon Toko)
+                    </h4>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Upload logo toko untuk etalase &amp; struk, serta icon favicon untuk tab browser pelanggan.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* 1. Upload Logo Toko */}
+                    <div className="p-3.5 rounded-xl border bg-muted/20 space-y-3 flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-semibold flex items-center gap-1.5">
+                            <ImageIcon className="w-3.5 h-3.5 text-blue-500" />
+                            Logo Toko Online
+                          </Label>
+                          {(formData.logoUrl || formData.businessLogo) && (
+                            <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
+                              Terpasang
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">
+                          Format PNG, JPG, SVG, WebP (Maks 5MB)
+                        </p>
+                      </div>
+
+                      {/* Logo Preview Box */}
+                      <div className="relative rounded-lg border border-dashed border-border bg-card/60 p-3 flex flex-col items-center justify-center min-h-[110px] overflow-hidden group">
+                        {(formData.logoUrl || formData.businessLogo) ? (
+                          <div className="relative w-full flex items-center justify-center">
+                            <img 
+                              src={formData.logoUrl || formData.businessLogo} 
+                              alt="Logo Toko" 
+                              className="max-h-20 max-w-full object-contain drop-shadow-xs"
+                            />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              onClick={handleClearLogo}
+                              className="absolute top-0 right-0 h-6 w-6 rounded-full opacity-80 hover:opacity-100 shadow-sm cursor-pointer"
+                              title="Hapus Logo"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div 
+                            onClick={() => logoInputRef.current?.click()}
+                            className="flex flex-col items-center justify-center text-center cursor-pointer p-2 hover:opacity-80 transition-opacity"
+                          >
+                            <div className="p-2 rounded-full bg-muted text-muted-foreground mb-1.5">
+                              <Upload className="w-4 h-4" />
+                            </div>
+                            <span className="text-xs font-medium text-foreground">Pilih File Logo</span>
+                            <span className="text-[10px] text-muted-foreground">Klik untuk upload file foto logo</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Hidden File Input */}
+                      <input 
+                        ref={logoInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleUploadLogoFile}
+                        className="hidden"
+                      />
+
+                      {/* Actions */}
+                      <div className="space-y-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={isUploadingLogo}
+                          onClick={() => logoInputRef.current?.click()}
+                          className="w-full text-xs h-8 cursor-pointer"
+                        >
+                          {isUploadingLogo ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                              Mengupload Logo...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-3.5 h-3.5 mr-1.5" />
+                              {(formData.logoUrl || formData.businessLogo) ? 'Ganti Logo Toko' : 'Upload File Logo'}
+                            </>
+                          )}
+                        </Button>
+                        <Input 
+                          value={formData.logoUrl || ''} 
+                          onChange={(e) => {
+                            handleInputChange('logoUrl', e.target.value);
+                            handleInputChange('businessLogo', e.target.value);
+                          }} 
+                          placeholder="Atau URL logo (https://...)"
+                          className="text-[11px] h-7 font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    {/* 2. Upload Favicon Toko */}
+                    <div className="p-3.5 rounded-xl border bg-muted/20 space-y-3 flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-semibold flex items-center gap-1.5">
+                            <Globe className="w-3.5 h-3.5 text-emerald-500" />
+                            Favicon (Icon Tab Browser)
+                          </Label>
+                          {(formData.favicon_url || formData.faviconUrl) && (
+                            <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
+                              Terpasang
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">
+                          Icon tab browser (PNG, ICO, SVG maks 2MB)
+                        </p>
+                      </div>
+
+                      {/* Browser Tab Mock Preview */}
+                      <div className="rounded-lg border bg-muted/60 p-2.5 space-y-1.5 select-none min-h-[110px] flex flex-col justify-center">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full bg-red-400"></div>
+                          <div className="w-2 h-2 rounded-full bg-amber-400"></div>
+                          <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
+                          <span className="text-[9px] text-muted-foreground font-mono ml-1">Pratinjau Tab Browser:</span>
+                        </div>
+                        <div className="flex items-center justify-between bg-card px-2.5 py-1.5 rounded-md border shadow-xs text-xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {(formData.favicon_url || formData.faviconUrl) ? (
+                              <img 
+                                src={formData.favicon_url || formData.faviconUrl} 
+                                alt="Favicon" 
+                                className="w-4 h-4 object-contain rounded-xs shrink-0"
+                              />
+                            ) : (formData.logoUrl || formData.businessLogo) ? (
+                              <img 
+                                src={formData.logoUrl || formData.businessLogo} 
+                                alt="Favicon Fallback" 
+                                className="w-4 h-4 object-contain rounded-xs shrink-0"
+                              />
+                            ) : (
+                              <div className="w-4 h-4 rounded-xs bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
+                                {(formData.businessName || 'T')[0]}
+                              </div>
+                            )}
+                            <span className="font-semibold text-foreground truncate text-[11px]">
+                              {formData.businessName || 'Toko Saya'} - Toko Online
+                            </span>
+                          </div>
+                          {(formData.favicon_url || formData.faviconUrl) && (
+                            <button 
+                              type="button"
+                              onClick={handleClearFavicon}
+                              className="text-muted-foreground hover:text-destructive text-xs ml-1 shrink-0 p-0.5 cursor-pointer"
+                              title="Reset Favicon"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Hidden Favicon File Input */}
+                      <input 
+                        ref={faviconInputRef}
+                        type="file"
+                        accept="image/png,image/x-icon,image/jpeg,image/svg+xml,image/webp,.ico"
+                        onChange={handleUploadFaviconFile}
+                        className="hidden"
+                      />
+
+                      {/* Actions */}
+                      <div className="space-y-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={isUploadingFavicon}
+                          onClick={() => faviconInputRef.current?.click()}
+                          className="w-full text-xs h-8 cursor-pointer"
+                        >
+                          {isUploadingFavicon ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                              Mengupload Favicon...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-3.5 h-3.5 mr-1.5" />
+                              {(formData.favicon_url || formData.faviconUrl) ? 'Ganti Favicon' : 'Upload File Favicon'}
+                            </>
+                          )}
+                        </Button>
+                        <Input 
+                          value={formData.favicon_url || formData.faviconUrl || ''} 
+                          onChange={(e) => {
+                            handleInputChange('favicon_url', e.target.value);
+                            handleInputChange('faviconUrl', e.target.value);
+                          }} 
+                          placeholder="Atau URL favicon (https://...)"
+                          className="text-[11px] h-7 font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </ColoredCard>
@@ -720,6 +1097,174 @@ const Settings = () => {
                           Buka <ExternalLink className="w-3 h-3" />
                         </a>
                       </div>
+                    </div>
+
+                    {/* FULL CUSTOM DOMAIN SECTION */}
+                    <div className="pt-4 border-t border-border/80 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Globe className="w-4 h-4 text-emerald-500" />
+                          <Label htmlFor="custom_domain" className="text-xs font-bold text-foreground">
+                            Custom Domain Pribadi Toko
+                          </Label>
+                        </div>
+                        {formData.custom_domain ? (
+                          <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-mono">
+                            {formData.custom_domain}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] text-muted-foreground border-dashed">
+                            Belum Dikonfigurasi
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                          <div className="bg-background px-3 py-2 rounded-md text-xs text-muted-foreground border font-mono shrink-0">
+                            https://
+                          </div>
+                          <Input 
+                            id="custom_domain" 
+                            value={formData.custom_domain || ''} 
+                            onChange={(e) => handleInputChange('custom_domain', e.target.value.toLowerCase().trim().replace(/^https?:\/\//, '').replace(/\/.*$/, ''))}
+                            placeholder="tokosaya.com atau shop.tokosaya.com"
+                            className="flex-1 font-mono text-sm"
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={handleVerifyDomain}
+                            disabled={isVerifyingDomain || !formData.custom_domain}
+                            className="shrink-0 h-9 gap-1.5 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
+                          >
+                            {isVerifyingDomain ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <ShieldCheck className="w-3.5 h-3.5" />
+                            )}
+                            {isVerifyingDomain ? "Mengecek DNS..." : "Verifikasi DNS"}
+                          </Button>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          Masukkan nama domain milik toko Anda tanpa <code>http://</code> atau <code>https://</code>. Klik <strong>Simpan Perubahan</strong> di atas untuk menyimpan.
+                        </p>
+                      </div>
+
+                      {/* DNS Verification Results Alert */}
+                      {verifyDomainResult && (
+                        <div className={`p-3 rounded-xl border text-xs space-y-2 transition-all ${
+                          verifyDomainResult.isMatched 
+                            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300" 
+                            : verifyDomainResult.resolved 
+                              ? "bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-300"
+                              : "bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300"
+                        }`}>
+                          <div className="flex items-start gap-2">
+                            {verifyDomainResult.isMatched ? (
+                              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
+                            ) : verifyDomainResult.resolved ? (
+                              <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                            ) : (
+                              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400 mt-0.5" />
+                            )}
+                            <div className="space-y-1 flex-1">
+                              <p className="font-semibold">{verifyDomainResult.message}</p>
+                              {verifyDomainResult.cname && (
+                                <p className="font-mono text-[11px] opacity-80">CNAME Terdeteksi: <strong>{verifyDomainResult.cname}</strong></p>
+                              )}
+                              {verifyDomainResult.ips && verifyDomainResult.ips.length > 0 && (
+                                <p className="font-mono text-[11px] opacity-80">IP Terdeteksi: <strong>{verifyDomainResult.ips.join(', ')}</strong></p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* DNS Setup Guide Card */}
+                      <div className="p-3.5 bg-background/80 rounded-xl border space-y-2.5 text-xs">
+                        <div className="flex items-center gap-1.5 font-semibold text-foreground">
+                          <Info className="w-3.5 h-3.5 text-primary" />
+                          <span>Panduan Konfigurasi DNS di Registrar Domain Anda:</span>
+                        </div>
+                        <p className="text-muted-foreground text-[11px] leading-relaxed">
+                          Buka dashboard pengelola domain Anda (misal <i>Niagahoster, Domainesia, Rumahweb, Cloudflare, Namecheap</i>), lalu tambahkan DNS record berikut:
+                        </p>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 font-mono text-[11px]">
+                          <div className="p-2.5 bg-muted/60 rounded-lg border flex items-center justify-between">
+                            <div>
+                              <p className="text-[10px] text-muted-foreground font-sans uppercase font-bold">Jenis Record (Type)</p>
+                              <p className="font-semibold text-foreground">CNAME</p>
+                            </div>
+                            <Badge variant="secondary" className="text-[10px]">Rekomendasi</Badge>
+                          </div>
+                          <div className="p-2.5 bg-muted/60 rounded-lg border flex items-center justify-between">
+                            <div>
+                              <p className="text-[10px] text-muted-foreground font-sans uppercase font-bold">Nama Host (Name)</p>
+                              <p className="font-semibold text-foreground">@ / www / subdomain</p>
+                            </div>
+                          </div>
+                          <div className="p-2.5 bg-muted/60 rounded-lg border sm:col-span-2 flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-[10px] text-muted-foreground font-sans uppercase font-bold">Target / Tujuan (Value)</p>
+                              <p className="font-semibold text-primary truncate">pos.elvisyam.com</p>
+                            </div>
+                            <Button 
+                              type="button" 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => handleCopyTargetHost("pos.elvisyam.com")}
+                              className="h-7 text-[10px] shrink-0 gap-1 font-sans"
+                            >
+                              {copiedTargetHost ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                              {copiedTargetHost ? "Tersalin" : "Salin Target"}
+                            </Button>
+                          </div>
+                        </div>
+
+                        <p className="text-[10px] text-muted-foreground italic">
+                          Catatan: Setelah mengatur DNS di registrar, perubahan biasanya membutuhkan waktu propagasi 5-30 menit.
+                        </p>
+                      </div>
+
+                      {/* Active Custom Domain Link Banner */}
+                      {formData.custom_domain && (
+                        <div className="p-3 bg-card rounded-lg border border-dashed border-emerald-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Link Domain Toko:</p>
+                            <a 
+                              href={`https://${formData.custom_domain}`} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-emerald-600 dark:text-emerald-400 hover:underline text-xs font-mono font-medium truncate block mt-0.5"
+                            >
+                              https://{formData.custom_domain}
+                            </a>
+                          </div>
+                          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleCopyDomain(formData.custom_domain)}
+                              className="h-8 text-xs gap-1.5"
+                            >
+                              {copiedDomain ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                              {copiedDomain ? "Tersalin!" : "Salin Link"}
+                            </Button>
+                            <a
+                              href={`https://${formData.custom_domain}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-3 py-1.5 rounded-md hover:bg-emerald-500/20 transition-colors shrink-0 font-medium h-8"
+                            >
+                              Buka Domain <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

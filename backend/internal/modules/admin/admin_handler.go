@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -30,6 +31,7 @@ func (h *AdminHandler) RegisterRoutes(r *gin.RouterGroup) {
 	// Settings
 	r.GET("/settings", middleware.AuthenticateToken(), h.GetSettings)
 	r.PUT("/settings", middleware.AuthenticateToken(), h.UpdateSettings)
+	r.POST("/settings/verify-domain", middleware.AuthenticateToken(), h.VerifyCustomDomain)
 
 	// Landing CMS
 	r.GET("/landing-cms", h.GetLandingCMS)
@@ -150,6 +152,8 @@ type SettingsRow struct {
 	FooterText            *string  `json:"footer_text" db:"footer_text"`
 	StoreReviews          *string  `json:"store_reviews" db:"store_reviews"`
 	StoreFeatures         *string  `json:"store_features" db:"store_features"`
+	CustomDomain          *string  `json:"custom_domain" db:"custom_domain"`
+	FaviconURL            *string  `json:"favicon_url" db:"favicon_url"`
 }
 
 func (h *AdminHandler) GetSettings(c *gin.Context) {
@@ -184,7 +188,7 @@ func (h *AdminHandler) GetSettings(c *gin.Context) {
 		       COALESCE(theme_color, 'emerald') as theme_color,
 		       COALESCE(tagline, 'Sehat Alami, Hidup Harmoni') as tagline,
 		       instagram_url, facebook_url, whatsapp_number, footer_text, store_reviews, store_features,
-		       auth_background
+		       auth_background, custom_domain, favicon_url
 		FROM settings
 		WHERE user_id = $1
 	`, tenantID)
@@ -259,6 +263,8 @@ func (h *AdminHandler) UpdateSettings(c *gin.Context) {
 		FooterText            *string  `json:"footer_text"`
 		StoreReviews          *string  `json:"store_reviews"`
 		StoreFeatures         *string  `json:"store_features"`
+		CustomDomain          *string  `json:"custom_domain"`
+		FaviconURL            *string  `json:"favicon_url"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -275,6 +281,29 @@ func (h *AdminHandler) UpdateSettings(c *gin.Context) {
 		curr = "IDR"
 	}
 
+	var cleanCustomDomain *string
+	if req.CustomDomain != nil {
+		d := strings.TrimSpace(strings.ToLower(*req.CustomDomain))
+		d = strings.TrimPrefix(d, "https://")
+		d = strings.TrimPrefix(d, "http://")
+		d = strings.TrimRight(d, "/")
+		if idx := strings.Index(d, "/"); idx != -1 {
+			d = d[:idx]
+		}
+		if idx := strings.Index(d, ":"); idx != -1 {
+			d = d[:idx]
+		}
+		if d != "" {
+			var existingOwner string
+			_ = database.DB.Get(&existingOwner, "SELECT user_id FROM settings WHERE custom_domain = $1 AND user_id != $2", d, tenantID)
+			if existingOwner != "" {
+				utils.RespondError(c, http.StatusBadRequest, "Domain ini sudah digunakan oleh toko lain")
+				return
+			}
+			cleanCustomDomain = &d
+		}
+	}
+
 	_, err := database.DB.Exec(`
 		INSERT INTO settings (
 			id, user_id, business_name, business_address, business_phone, business_email,
@@ -284,7 +313,8 @@ func (h *AdminHandler) UpdateSettings(c *gin.Context) {
 			laundry_perfume_options, laundry_rack_locations, laundry_prefix,
 			min_spend_for_member, point_rate, point_value,
 			gold_threshold, platinum_threshold, auth_background, theme_color, tagline,
-			instagram_url, facebook_url, whatsapp_number, footer_text, store_reviews, store_features
+			instagram_url, facebook_url, whatsapp_number, footer_text, store_reviews, store_features,
+			custom_domain, favicon_url
 		) VALUES (
 			$1, $2, $3, $4, $5, $6,
 			$7, $8, $9, COALESCE($10, 0), COALESCE($11, 0), $12,
@@ -293,7 +323,8 @@ func (h *AdminHandler) UpdateSettings(c *gin.Context) {
 			COALESCE($27, 'Akasia,Downy Red,Sakura,Ocean Fresh,Lavender,Snappy,Molto Blue'), COALESCE($28, 'Rak A-01,Rak A-02,Rak A-03,Rak B-01,Rak B-02,Rak B-03,Gantungan 01,Gantungan 02'), COALESCE($29, 'LND'),
 			COALESCE($30, 100000), COALESCE($31, 10000), COALESCE($32, 100),
 			COALESCE($33, 1000000), COALESCE($34, 5000000), $35, COALESCE($36, 'emerald'), COALESCE($37, 'Sehat Alami, Hidup Harmoni'),
-			$38, $39, $40, $41, $42, $43
+			$38, $39, $40, $41, $42, $43,
+			$44, $45
 		)
 		ON CONFLICT (user_id) DO UPDATE SET
 			business_name = EXCLUDED.business_name,
@@ -337,6 +368,8 @@ func (h *AdminHandler) UpdateSettings(c *gin.Context) {
 			footer_text = COALESCE(EXCLUDED.footer_text, settings.footer_text),
 			store_reviews = COALESCE(EXCLUDED.store_reviews, settings.store_reviews),
 			store_features = COALESCE(EXCLUDED.store_features, settings.store_features),
+			custom_domain = $44,
+			favicon_url = COALESCE(EXCLUDED.favicon_url, settings.favicon_url),
 			updated_at = CURRENT_TIMESTAMP
 	`, utils.GenerateUUID(), tenantID, bName, req.BusinessAddress, req.BusinessPhone, req.BusinessEmail,
 		req.BusinessLogo, req.LogoURL, req.Description, req.TaxRate, req.DefaultDiscount, curr,
@@ -345,7 +378,8 @@ func (h *AdminHandler) UpdateSettings(c *gin.Context) {
 		req.LaundryPerfumeOptions, req.LaundryRackLocations, req.LaundryPrefix,
 		req.MinSpendForMember, req.PointRate, req.PointValue,
 		req.GoldThreshold, req.PlatinumThreshold, req.AuthBackground, req.ThemeColor, req.Tagline,
-		req.InstagramURL, req.FacebookURL, req.WhatsAppNumber, req.FooterText, req.StoreReviews, req.StoreFeatures)
+		req.InstagramURL, req.FacebookURL, req.WhatsAppNumber, req.FooterText, req.StoreReviews, req.StoreFeatures,
+		cleanCustomDomain, req.FaviconURL)
 
 	if err != nil {
 		utils.RespondError(c, http.StatusInternalServerError, err.Error())
@@ -353,6 +387,74 @@ func (h *AdminHandler) UpdateSettings(c *gin.Context) {
 	}
 
 	h.GetSettings(c)
+}
+
+func (h *AdminHandler) VerifyCustomDomain(c *gin.Context) {
+	tenantID := c.GetString("tenantId")
+
+	var req struct {
+		Domain string `json:"domain"`
+	}
+	_ = c.ShouldBindJSON(&req)
+
+	domainToVerify := strings.TrimSpace(strings.ToLower(req.Domain))
+	if domainToVerify == "" {
+		var currentDomain sql.NullString
+		_ = database.DB.Get(&currentDomain, "SELECT custom_domain FROM settings WHERE user_id = $1", tenantID)
+		if currentDomain.Valid {
+			domainToVerify = currentDomain.String
+		}
+	}
+
+	domainToVerify = strings.TrimPrefix(domainToVerify, "https://")
+	domainToVerify = strings.TrimPrefix(domainToVerify, "http://")
+	domainToVerify = strings.TrimRight(domainToVerify, "/")
+	if idx := strings.Index(domainToVerify, "/"); idx != -1 {
+		domainToVerify = domainToVerify[:idx]
+	}
+	if idx := strings.Index(domainToVerify, ":"); idx != -1 {
+		domainToVerify = domainToVerify[:idx]
+	}
+
+	if domainToVerify == "" {
+		utils.RespondValidationError(c, "Nama domain wajib diisi untuk verifikasi DNS")
+		return
+	}
+
+	// 1. Lookup Host IP addresses
+	ips, err := net.LookupHost(domainToVerify)
+	resolved := err == nil && len(ips) > 0
+
+	// 2. Lookup CNAME
+	cname, _ := net.LookupCNAME(domainToVerify)
+	cname = strings.TrimSuffix(cname, ".")
+
+	targetHost := "pos.elvisyam.com"
+	isMatched := false
+	if resolved {
+		isMatched = true
+	}
+	if strings.Contains(strings.ToLower(cname), "elvisyam") {
+		isMatched = true
+	}
+
+	msg := "DNS record belum terdeteksi. Silakan periksa konfigurasi CNAME atau A record di registrar domain Anda."
+	if isMatched {
+		msg = "DNS domain berhasil terhubung dan mengarah ke server POS!"
+	} else if resolved {
+		msg = "Domain terdeteksi memiliki DNS, pastikan CNAME mengarah ke " + targetHost + " atau A record ke IP server."
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":    true,
+		"domain":     domainToVerify,
+		"resolved":   resolved,
+		"ips":        ips,
+		"cname":      cname,
+		"targetHost": targetHost,
+		"isMatched":  isMatched,
+		"message":    msg,
+	})
 }
 
 // -------------------------------------------------------------

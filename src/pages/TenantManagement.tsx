@@ -52,11 +52,6 @@ import {
     ArrowUpDown,
     Filter,
     X,
-    ListOrdered,
-    Wrench,
-    Scissors,
-    UtensilsCrossed,
-    Shirt,
     Save
 } from "lucide-react";
 import { toast } from "sonner";
@@ -732,106 +727,6 @@ const TenantManagement = () => {
                                         className="h-9 text-xs rounded-xl"
                                     />
                                 </div>
-                            </div>
-
-                            {/* Feature Toggle: Jasa & Antrian */}
-                            <div className="flex items-center justify-between p-3.5 rounded-xl border border-primary/20 bg-primary/5">
-                                <div className="space-y-0.5 pr-3">
-                                    <Label htmlFor="service_queue_enabled" className="text-xs font-bold text-foreground flex items-center gap-1.5 cursor-pointer">
-                                        <ListOrdered className="w-4 h-4 text-primary" />
-                                        Modul Jasa & Antrian Layanan
-                                    </Label>
-                                    <p className="text-[11px] text-muted-foreground">
-                                        Aktifkan sistem tiket antrian nomor harian, papan Kanban kerja, display TV, dan live tracking HP.
-                                    </p>
-                                </div>
-                                <input
-                                    type="checkbox"
-                                    id="service_queue_enabled"
-                                    checked={subFormData.service_queue_enabled}
-                                    onChange={(e) => setSubFormData({ ...subFormData, service_queue_enabled: e.target.checked })}
-                                    className="w-5 h-5 accent-primary rounded cursor-pointer shrink-0"
-                                />
-                            </div>
-
-                            {/* Feature Toggle: Modul Bengkel */}
-                            <div className="flex items-center justify-between p-3.5 rounded-xl border border-blue-500/20 bg-blue-50/50 dark:bg-blue-950/20">
-                                <div className="space-y-0.5 pr-3">
-                                    <Label htmlFor="workshop_enabled" className="text-xs font-bold text-foreground flex items-center gap-1.5 cursor-pointer">
-                                        <Wrench className="w-4 h-4 text-blue-600" />
-                                        Modul Bengkel & Otomotif (SPK / Stall)
-                                    </Label>
-                                    <p className="text-[11px] text-muted-foreground">
-                                        Aktifkan Surat Perintah Kerja (SPK), manajemen Pit/Stall, database kendaraan, riwayat servis, dan service reminder.
-                                    </p>
-                                </div>
-                                <input
-                                    type="checkbox"
-                                    id="workshop_enabled"
-                                    checked={subFormData.workshop_enabled}
-                                    onChange={(e) => setSubFormData({ ...subFormData, workshop_enabled: e.target.checked })}
-                                    className="w-5 h-5 accent-blue-600 rounded cursor-pointer shrink-0"
-                                />
-                            </div>
-
-                            {/* Feature Toggle: Modul Barbershop */}
-                            <div className="flex items-center justify-between p-3.5 rounded-xl border border-purple-500/20 bg-purple-50/50 dark:bg-purple-950/20">
-                                <div className="space-y-0.5 pr-3">
-                                    <Label htmlFor="barbershop_enabled" className="text-xs font-bold text-foreground flex items-center gap-1.5 cursor-pointer">
-                                        <Scissors className="w-4 h-4 text-purple-600" />
-                                        Modul Barbershop & Salon Premier
-                                    </Label>
-                                    <p className="text-[11px] text-muted-foreground">
-                                        Aktifkan kalender slot booking kapster, status kursi barber, rekam riwayat gaya rambut pelanggan, dan komisi montir/barber.
-                                    </p>
-                                </div>
-                                <input
-                                    type="checkbox"
-                                    id="barbershop_enabled"
-                                    checked={subFormData.barbershop_enabled}
-                                    onChange={(e) => setSubFormData({ ...subFormData, barbershop_enabled: e.target.checked })}
-                                    className="w-5 h-5 accent-purple-600 rounded cursor-pointer shrink-0"
-                                />
-                            </div>
-
-                            {/* Feature Toggle: Modul Cafe & Restoran F&B */}
-                            <div className="flex items-center justify-between p-3.5 rounded-xl border border-pink-500/20 bg-pink-50/50 dark:bg-pink-950/20">
-                                <div className="space-y-0.5 pr-3">
-                                    <Label htmlFor="fnb_enabled" className="text-xs font-bold text-foreground flex items-center gap-1.5 cursor-pointer">
-                                        <UtensilsCrossed className="w-4 h-4 text-pink-600" />
-                                        Modul Cafe, Coffee Shop & Restoran (F&B)
-                                    </Label>
-                                    <p className="text-[11px] text-muted-foreground">
-                                        Buka denah meja visual, KDS layar dapur/barista, buku resep & pemotongan stok bahan baku (BOM), modifiers topping, dan self-order QR meja.
-                                    </p>
-                                </div>
-                                <input
-                                    type="checkbox"
-                                    id="fnb_enabled"
-                                    checked={subFormData.fnb_enabled}
-                                    onChange={(e) => setSubFormData({ ...subFormData, fnb_enabled: e.target.checked })}
-                                    className="w-5 h-5 accent-pink-600 rounded cursor-pointer shrink-0"
-                                />
-                            </div>
-
-                            {/* Feature Toggle: Modul Laundry & Dry Clean */}
-                            <div className="flex items-center justify-between p-3.5 rounded-xl border border-sky-500/20 bg-sky-50/50 dark:bg-sky-950/20">
-                                <div className="space-y-0.5 pr-3">
-                                    <Label htmlFor="laundry_enabled" className="text-xs font-bold text-foreground flex items-center gap-1.5 cursor-pointer">
-                                        <Shirt className="w-4 h-4 text-sky-600" />
-                                        Modul Laundry & Dry Clean
-                                    </Label>
-                                    <p className="text-[11px] text-muted-foreground">
-                                        Buka kasir kiloan/satuan, papan Kanban workflow cucian, pilihan aroma parfum, penempatan nomor rak, dan WhatsApp notifikasi otomatis.
-                                    </p>
-                                </div>
-                                <input
-                                    type="checkbox"
-                                    id="laundry_enabled"
-                                    checked={subFormData.laundry_enabled}
-                                    onChange={(e) => setSubFormData({ ...subFormData, laundry_enabled: e.target.checked })}
-                                    className="w-5 h-5 accent-sky-600 rounded cursor-pointer shrink-0"
-                                />
                             </div>
 
                             <div className="flex items-center justify-end gap-2 pt-2 border-t">

@@ -848,6 +848,7 @@ func AutoMigrate(db *sqlx.DB) error {
 		`ALTER TABLE settings ADD COLUMN IF NOT EXISTS workshop_enabled BOOLEAN DEFAULT FALSE`,
 		`ALTER TABLE settings ADD COLUMN IF NOT EXISTS service_stations TEXT DEFAULT 'Pit 1,Pit 2,Pit 3,Kursi 1,Kursi 2'`,
 		`ALTER TABLE settings ADD COLUMN IF NOT EXISTS queue_prefix VARCHAR(10) DEFAULT 'A'`,
+		`ALTER TABLE settings ADD COLUMN IF NOT EXISTS favicon_url TEXT`,
 
 		// -------------------------------------------------------------
 		// MODUL BENGKEL (WORKSHOP / AUTOMOTIVE SERVICE MANAGEMENT)
@@ -1308,6 +1309,8 @@ func AutoMigrate(db *sqlx.DB) error {
 		`ALTER TABLE settings ADD COLUMN IF NOT EXISTS facebook_url VARCHAR(255)`,
 		`ALTER TABLE settings ADD COLUMN IF NOT EXISTS whatsapp_number VARCHAR(50)`,
 		`ALTER TABLE settings ADD COLUMN IF NOT EXISTS footer_text TEXT`,
+		`ALTER TABLE settings ADD COLUMN IF NOT EXISTS custom_domain VARCHAR(255)`,
+		`CREATE INDEX IF NOT EXISTS idx_settings_custom_domain ON settings(custom_domain)`,
 
 		// -------------------------------------------------------------
 		// PROFIT DISTRIBUTIONS COLUMNS MIGRATION

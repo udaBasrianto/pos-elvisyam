@@ -141,6 +141,10 @@ export interface Settings {
   footer_text?: string;
   store_reviews?: string;
   store_features?: string;
+  custom_domain?: string;
+  customDomain?: string;
+  faviconUrl?: string;
+  favicon_url?: string;
 }
 
 // State interface
@@ -368,11 +372,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         tagline: settingsData.tagline || 'Sehat Alami, Hidup Harmoni',
         logoUrl: settingsData.logo_url || '',
         businessLogo: settingsData.business_logo || '',
+        faviconUrl: settingsData.favicon_url || '',
+        favicon_url: settingsData.favicon_url || '',
         description: settingsData.description || '',
+        custom_domain: settingsData.custom_domain || '',
+        customDomain: settingsData.custom_domain || '',
       };
 
       if (settings.theme_color) {
         localStorage.setItem('pos-theme-color', settings.theme_color);
+      }
+
+      if (settings.faviconUrl || settings.favicon_url) {
+        const favUrl = settings.faviconUrl || settings.favicon_url;
+        let link = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = 'shortcut icon';
+          document.head.appendChild(link);
+        }
+        link.href = favUrl!;
       }
 
       if (settings.businessName) {
@@ -412,31 +431,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } catch (cacheError) {
         dispatch({ type: 'SET_ERROR', payload: 'Failed to load data' });
       }
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
   }, [user]);
 
   const syncOfflineData = useCallback(async () => {
-    if (!navigator.onLine) return;
     try {
       const queue = await getSyncQueue();
-      if (queue.length === 0) return;
-
-      toast.info(`Menyelaraskan ${queue.length} transaksi offline...`);
       for (const item of queue) {
-        if (item.type === 'ADD_TRANSACTION') {
-          try {
+        try {
+          if (item.type === 'ADD_TRANSACTION') {
             await api.post('/transactions', item.payload);
-            await removeFromSyncQueue((item as any).id);
-          } catch (e: any) {
-            console.error('Failed to sync transaction:', e);
-            // If the error is a 4xx, it might be unprocessable, but we'll keep it simple
+          } else if (item.payload?.endpoint) {
+            if (item.type === 'CREATE') {
+              await api.post(item.payload.endpoint, item.payload.data);
+            } else if (item.type === 'UPDATE') {
+              await api.put(item.payload.endpoint, item.payload.data);
+            } else if (item.type === 'DELETE') {
+              await api.delete(item.payload.endpoint);
+            }
           }
+          if (item.id !== undefined) {
+            await removeFromSyncQueue(item.id);
+          }
+        } catch (e) {
+          console.warn(`Sync failed for queue item ${item.id}:`, e);
         }
       }
-      toast.success('Penyelarasan data offline selesai.');
-      await loadData();
-    } catch (error) {
-      console.error('Sync process error:', error);
+      if (queue.length > 0) {
+        toast.info('Data offline berhasil disinkronisasi');
+        loadData();
+      }
+    } catch (e) {
+      console.error('Failed to process sync queue:', e);
     }
   }, [loadData]);
 
@@ -488,12 +516,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         auth_background: settings.authBackground,
         theme_color: settings.theme_color || settings.themeColor || 'emerald',
         tagline: settings.tagline || 'Sehat Alami, Hidup Harmoni',
-        business_logo: settings.businessLogo || '',
-        logo_url: settings.logoUrl || '',
-        description: settings.description || ''
+        business_logo: settings.businessLogo || settings.logoUrl || '',
+        logo_url: settings.logoUrl || settings.businessLogo || '',
+        favicon_url: settings.faviconUrl || settings.favicon_url || '',
+        description: settings.description || '',
+        custom_domain: settings.custom_domain || settings.customDomain || ''
       });
       if (settings.theme_color || settings.themeColor) {
         localStorage.setItem('pos-theme-color', settings.theme_color || settings.themeColor || 'emerald');
+      }
+      if (settings.faviconUrl || settings.favicon_url) {
+        const favUrl = settings.faviconUrl || settings.favicon_url;
+        let link = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = 'shortcut icon';
+          document.head.appendChild(link);
+        }
+        link.href = favUrl!;
       }
       dispatch({ type: 'UPDATE_SETTINGS', payload: settings });
       toast.success('Pengaturan berhasil disimpan');
