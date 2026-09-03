@@ -9,10 +9,23 @@ export interface StoreThemeStyles {
   softBg: string;
   softBorder: string;
   badgeBg: string;
+  badgeText?: string;
+  primaryHex?: string;
   gradientCard: string;
   activeDot: string;
   activePill: string;
 }
+
+export const STORE_THEME_PALETTES = [
+  { id: 'emerald', label: 'Emerald Hijau (Herbal & Sehat)', bg: 'bg-emerald-800' },
+  { id: 'blue', label: 'Biru Samudra (Modern & Tech)', bg: 'bg-blue-600' },
+  { id: 'violet', label: 'Violet Elegan (Mewah & Estetik)', bg: 'bg-violet-700' },
+  { id: 'rose', label: 'Rose Pink (Kecantikan & Fashion)', bg: 'bg-rose-600' },
+  { id: 'amber', label: 'Amber Oranye (Kuliner & Hangat)', bg: 'bg-amber-600' },
+  { id: 'teal', label: 'Teal Laut (Elegan & Segar)', bg: 'bg-teal-700' },
+  { id: 'cyan', label: 'Cyan Langit (Segar & Dinamis)', bg: 'bg-cyan-700' },
+  { id: 'slate', label: 'Slate Gelap (Netral & Profesional)', bg: 'bg-slate-800' },
+];
 
 export const getStoreThemeStyles = (themeName: string = 'emerald'): StoreThemeStyles => {
   const normalized = themeName?.toLowerCase().trim() || 'emerald';

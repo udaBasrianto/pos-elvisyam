@@ -48,6 +48,7 @@ import {
   Truck,
   Heart,
   RefreshCw,
+  ShoppingCart,
 } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -976,11 +977,11 @@ export default function StorefrontSettings() {
                     Pratinjau Elemen Toko Online ({formData.theme_color || "emerald"}):
                   </span>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Button size="sm" className="text-xs font-semibold" style={{ backgroundColor: currentTheme.primaryHex }}>
+                    <Button size="sm" className={`text-xs font-semibold ${currentTheme.primaryBg}`}>
                       <ShoppingCart className="w-3.5 h-3.5 mr-1.5" />
                       + Tambah ke Keranjang
                     </Button>
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${currentTheme.badgeBg} ${currentTheme.badgeText} border ${currentTheme.softBorder}`}>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${currentTheme.badgeBg} border ${currentTheme.softBorder}`}>
                       Diskon 20%
                     </span>
                     <span className={`font-bold text-sm ${currentTheme.primaryText}`}>

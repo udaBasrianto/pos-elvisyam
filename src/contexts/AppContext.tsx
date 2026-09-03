@@ -145,6 +145,10 @@ export interface Settings {
   customDomain?: string;
   faviconUrl?: string;
   favicon_url?: string;
+  logo_url?: string;
+  business_logo?: string;
+  shop_slug?: string;
+  shopSlug?: string;
 }
 
 // State interface
