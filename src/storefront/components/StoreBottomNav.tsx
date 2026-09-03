@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { Home, Package, ShoppingCart, User, LayoutGrid } from 'lucide-react';
+import { Home, Package, ShoppingCart, User } from 'lucide-react';
 import { useStore } from '../contexts/StoreContext';
 import { getStoreThemeStyles } from '../utils/storeTheme';
 import { getCustomDomainInfo } from '@/utils/domain';
@@ -26,12 +26,11 @@ export const StoreBottomNav: React.FC<StoreBottomNavProps> = ({ themeColor }) =>
     { path: `${basePath}/categories`, icon: Package, label: 'Produk' },
     { path: `${basePath}/cart`, icon: ShoppingCart, label: 'Keranjang', badge: cartCount },
     { path: `${basePath}/profile`, icon: User, label: 'Akun' },
-    { path: '/auth', icon: LayoutGrid, label: 'Admin', isExternal: true },
   ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-xl border-t border-border/70 z-50 safe-area-inset-bottom shadow-lg">
-      <div className="mx-auto max-w-md md:max-w-3xl lg:max-w-5xl grid grid-cols-5 h-16 px-1">
+      <div className="mx-auto max-w-md md:max-w-3xl lg:max-w-5xl grid grid-cols-4 h-16 px-1">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.path || (item.path === '/' && location.pathname === '');
