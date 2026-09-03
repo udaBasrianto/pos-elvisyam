@@ -226,13 +226,42 @@ export interface LabelElementPadding {
 export type LabelElementPositions = Partial<Record<LabelElementKey, LabelElementPosition>>;
 export type LabelElementPaddings = Partial<Record<LabelElementKey, LabelElementPadding>>;
 
-export const DEFAULT_LABEL_ELEMENT_ORDER: LabelElementKey[] = [
+export const ALL_LABEL_ELEMENT_KEYS: LabelElementKey[] = [
   'storeName',
   'productName',
+  'category',
+  'subCategory',
+  'brand',
   'barcode',
   'barcodeText',
   'price',
+  'sku',
 ];
+
+export const DEFAULT_LABEL_ELEMENT_ORDER: LabelElementKey[] = [
+  'storeName',
+  'productName',
+  'category',
+  'subCategory',
+  'brand',
+  'barcode',
+  'barcodeText',
+  'price',
+  'sku',
+];
+
+export function getEffectiveElementOrder(customOrder?: LabelElementKey[]): LabelElementKey[] {
+  if (!customOrder || customOrder.length === 0) {
+    return [...DEFAULT_LABEL_ELEMENT_ORDER];
+  }
+  const result = [...customOrder];
+  for (const k of ALL_LABEL_ELEMENT_KEYS) {
+    if (!result.includes(k)) {
+      result.push(k);
+    }
+  }
+  return result;
+}
 
 export const LABEL_OPTIONS_UPDATED_EVENT = 'pos_label_options_updated';
 
@@ -599,7 +628,7 @@ export function generateTsplLabel(
       const sku = (product.sku || '').trim();
 
       // Render elements in user-configured order with custom section padding/gap
-      const order = opts.elementOrder || DEFAULT_LABEL_ELEMENT_ORDER;
+      const order = getEffectiveElementOrder(opts.elementOrder);
       const tsplAlign = opts.textAlign === 'left' ? 1 : opts.textAlign === 'right' ? 3 : 2;
       const sectionGap = opts.sectionGapMm ?? 0.5;
       const sectionGapDots = Math.floor(sectionGap * dotsPerMm);
@@ -895,7 +924,7 @@ export async function generateRasterLabelBitmap(
     const sku = (product.sku || '').trim();
 
     // Render elements in user-configured order
-    const order = opts.elementOrder || DEFAULT_LABEL_ELEMENT_ORDER;
+    const order = getEffectiveElementOrder(opts.elementOrder);
     const fontFamilyCss = opts.fontFamily || 'sans-serif';
     const storeFontPx = opts.storeNameFontSize || 8;
     const productFontPx = opts.productNameFontSize || 9;

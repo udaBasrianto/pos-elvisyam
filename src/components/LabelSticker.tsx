@@ -1,10 +1,10 @@
-import React from 'react';
 import {
   type LabelPrintOptions,
   type LabelProductData,
   type LabelElementKey,
   type LabelElementPosition,
   DEFAULT_LABEL_ELEMENT_ORDER,
+  getEffectiveElementOrder,
   formatRupiah,
 } from '@/lib/labelPrinter';
 import { BarcodeGraphic } from '@/components/BarcodeGraphic';
@@ -61,10 +61,7 @@ export const LabelSticker: React.FC<LabelStickerProps> = ({
   const fontCss = getFontFamilyCss(options.fontFamily);
   const align = options.textAlign || 'center';
 
-  const elementOrder: LabelElementKey[] =
-    options.elementOrder && options.elementOrder.length > 0
-      ? options.elementOrder
-      : DEFAULT_LABEL_ELEMENT_ORDER;
+  const elementOrder: LabelElementKey[] = getEffectiveElementOrder(options.elementOrder);
 
   const store = (
     storeDisplayName ||
@@ -370,7 +367,9 @@ export const LabelSticker: React.FC<LabelStickerProps> = ({
         );
 
       case 'category':
-        if (!options.showCategory || !product.category) return null;
+        if (!options.showCategory) return null;
+        const categoryText = (product.category || (!isForPrint ? 'Kategori Produk' : '')).trim().toUpperCase();
+        if (!categoryText) return null;
         return (
           <div
             key="elem-category"
@@ -400,7 +399,7 @@ export const LabelSticker: React.FC<LabelStickerProps> = ({
                 lineHeight: '1.0',
               }}
             >
-              {product.category}
+              {categoryText}
             </span>
             {isSelected && (
               <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[8px] font-mono px-1 rounded shadow-xs pointer-events-none whitespace-nowrap z-10">
@@ -411,8 +410,9 @@ export const LabelSticker: React.FC<LabelStickerProps> = ({
         );
 
       case 'subCategory':
-        const subCatVal = (product as any).subCategory || (product as any).sub_category;
-        if (!options.showSubCategory || !subCatVal) return null;
+        if (!options.showSubCategory) return null;
+        const subCatVal = ((product as any).subCategory || (product as any).sub_category || (!isForPrint ? 'Sub-Kategori' : '')).trim();
+        if (!subCatVal) return null;
         return (
           <div
             key="elem-subcategory"
@@ -453,7 +453,9 @@ export const LabelSticker: React.FC<LabelStickerProps> = ({
         );
 
       case 'brand':
-        if (!options.showBrand || !product.brand) return null;
+        if (!options.showBrand) return null;
+        const brandText = (product.brand || (!isForPrint ? 'Merek Produk' : '')).trim().toUpperCase();
+        if (!brandText) return null;
         return (
           <div
             key="elem-brand"
@@ -483,7 +485,7 @@ export const LabelSticker: React.FC<LabelStickerProps> = ({
                 lineHeight: '1.0',
               }}
             >
-              {product.brand}
+              {brandText}
             </span>
             {isSelected && (
               <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[8px] font-mono px-1 rounded shadow-xs pointer-events-none whitespace-nowrap z-10">

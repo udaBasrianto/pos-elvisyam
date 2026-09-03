@@ -54,6 +54,7 @@ import {
   LABEL_PRESETS,
   DEFAULT_LABEL_OPTIONS,
   DEFAULT_LABEL_ELEMENT_ORDER,
+  getEffectiveElementOrder,
   formatRupiah,
   triggerBrowserLabelPrint,
   loadLabelOptions,
@@ -549,6 +550,44 @@ export function BarcodeConfigView({
     },
     [options]
   );
+
+  const toggleElementEnabled = useCallback((key: LabelElementKey) => {
+    setOptions((prev) => {
+      let next = { ...prev };
+      switch (key) {
+        case 'storeName':
+          next.showStoreName = !prev.showStoreName;
+          break;
+        case 'productName':
+          next.showName = !prev.showName;
+          break;
+        case 'barcode':
+          next.showBarcode = !prev.showBarcode;
+          break;
+        case 'barcodeText':
+          next.showBarcodeText = !prev.showBarcodeText;
+          break;
+        case 'price':
+          next.showPrice = !prev.showPrice;
+          break;
+        case 'sku':
+          next.showSku = !prev.showSku;
+          break;
+        case 'category':
+          next.showCategory = !prev.showCategory;
+          break;
+        case 'subCategory':
+          next.showSubCategory = !prev.showSubCategory;
+          break;
+        case 'brand':
+          next.showBrand = !prev.showBrand;
+          break;
+      }
+      next.elementOrder = getEffectiveElementOrder(next.elementOrder);
+      saveLabelOptions(next);
+      return next;
+    });
+  }, []);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>, key: LabelElementKey) => {
     e.stopPropagation();
@@ -1859,11 +1898,10 @@ export function BarcodeConfigView({
                   const IconComp = conf.icon;
 
                   return (
-                    <button
+                    <div
                       key={`elem-selector-${key}`}
-                      type="button"
                       onClick={() => setSelectedElement(key)}
-                      className={`p-2.5 rounded-xl border text-left flex items-center justify-between gap-2 transition-all ${
+                      className={`p-2.5 rounded-xl border text-left flex items-center justify-between gap-2 transition-all cursor-pointer select-none ${
                         isSelected
                           ? 'bg-primary text-primary-foreground border-primary shadow-sm ring-2 ring-primary/20'
                           : 'bg-background hover:bg-muted/60 text-foreground border-border'
@@ -1872,20 +1910,43 @@ export function BarcodeConfigView({
                       <div className="flex items-center gap-2 min-w-0">
                         <IconComp className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-white' : 'text-primary'}`} />
                         <div className="truncate">
-                          <p className="text-xs font-bold truncate leading-tight">{conf.label}</p>
+                          <p className="text-xs font-bold truncate leading-tight flex items-center gap-1.5">
+                            <span>{conf.label}</span>
+                            {hasOffset && (
+                              <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-amber-300' : 'bg-amber-500'} shrink-0`} title="Posisi digeser" />
+                            )}
+                          </p>
                           <p className={`text-[9.5px] truncate ${isSelected ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
                             {!isEnabled
-                              ? '(Nonaktif)'
+                              ? 'Nonaktif'
                               : hasOffset
                               ? `${pos.x > 0 ? `+${pos.x}` : pos.x}, ${pos.y > 0 ? `+${pos.y}` : pos.y} mm`
                               : 'Default (0,0)'}
                           </p>
                         </div>
                       </div>
-                      {hasOffset && (
-                        <span className={`w-2 h-2 rounded-full shrink-0 ${isSelected ? 'bg-amber-300' : 'bg-primary'}`} />
-                      )}
-                    </button>
+
+                      {/* Tombol Cepat Aktifkan / Nonaktifkan Langsung di Card */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleElementEnabled(key);
+                        }}
+                        className={`text-[9px] px-2 py-0.5 rounded-md font-extrabold uppercase transition-all shrink-0 border ${
+                          isEnabled
+                            ? isSelected
+                              ? 'bg-white text-primary border-white hover:bg-white/90 shadow-2xs'
+                              : 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 shadow-2xs'
+                            : isSelected
+                              ? 'bg-primary-foreground/20 text-white border-white/30 hover:bg-primary-foreground/30'
+                              : 'bg-muted text-muted-foreground border-border hover:bg-muted/80'
+                        }`}
+                        title={isEnabled ? `Klik untuk Nonaktifkan ${conf.label}` : `Klik untuk Aktifkan ${conf.label}`}
+                      >
+                        {isEnabled ? 'AKTIF' : 'OFF'}
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -1893,6 +1954,37 @@ export function BarcodeConfigView({
 
             {/* 2. D-PAD CONTROLLER & PRECISION NUDGE */}
             <div className="p-3.5 rounded-xl border bg-muted/20 space-y-3.5">
+              {/* STATUS AKTIF / NONAKTIF ELEMEN TERPILIH */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl bg-background border shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-foreground">
+                    Status {ELEMENT_CONFIG[selectedElement]?.label}:
+                  </span>
+                  <Badge
+                    variant={isElementEnabled(selectedElement) ? 'default' : 'secondary'}
+                    className={
+                      isElementEnabled(selectedElement)
+                        ? 'bg-emerald-600 hover:bg-emerald-600 text-white font-semibold text-[10px]'
+                        : 'bg-muted text-muted-foreground text-[10px]'
+                    }
+                  >
+                    {isElementEnabled(selectedElement) ? 'Sedang Aktif (Tampil di Stiker)' : 'Nonaktif (Tidak Dicetak)'}
+                  </Badge>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={isElementEnabled(selectedElement) ? 'outline' : 'default'}
+                  onClick={() => toggleElementEnabled(selectedElement)}
+                  className={`h-7 text-xs font-bold px-3 rounded-lg transition-all ${
+                    isElementEnabled(selectedElement)
+                      ? 'text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/30'
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
+                  }`}
+                >
+                  {isElementEnabled(selectedElement) ? 'Sembunyikan / Nonaktifkan' : '✓ Aktifkan di Stiker'}
+                </Button>
+              </div>
               <div className="flex items-center justify-between border-b pb-2">
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs font-bold text-foreground">
