@@ -102,113 +102,190 @@ export const StoreHero: React.FC<StoreHeroProps> = ({
 
   return (
     <section className="relative overflow-hidden">
-      <div className={`bg-gradient-to-br ${theme.gradientCard} border ${theme.softBorder} rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 md:p-10 shadow-xs relative overflow-hidden transition-all duration-500`}>
-        
-        {/* Decorative Background Glow */}
-        <div className="absolute -top-24 -right-24 w-72 h-72 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-20 -left-20 w-60 h-60 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="flex flex-row items-center justify-between gap-3 sm:gap-5 md:grid md:grid-cols-12 md:gap-8 relative z-10">
+      {/* 📱 1. MOBILE VIEW (Khusus HP: Ringkas, Horizontal, Height ~140px, Pas di Layar) */}
+      <div className="block md:hidden">
+        <div className={`bg-gradient-to-br ${theme.gradientCard} border ${theme.softBorder} rounded-2xl p-3.5 shadow-xs relative overflow-hidden transition-all duration-500`}>
+          <div className="absolute -top-16 -right-16 w-40 h-40 bg-primary/10 rounded-full blur-2xl pointer-events-none" />
           
-          {/* Left Text Content */}
-          <div className="flex-1 min-w-0 md:col-span-6 space-y-1.5 sm:space-y-3 md:space-y-4 text-left">
-            
-            {/* Pill Chip */}
-            <div className={`inline-flex items-center gap-1 px-2.5 py-0.5 sm:px-3.5 sm:py-1.5 rounded-full ${theme.badgeBg} border ${theme.softBorder} text-[10px] sm:text-xs font-bold shadow-2xs`}>
-              <Leaf className="w-3 h-3 sm:w-3.5 sm:h-3.5 opacity-80 shrink-0" />
-              <span className="truncate max-w-[120px] sm:max-w-none">{current.badge}</span>
-            </div>
-
-            {/* Main Headline */}
-            <h1 className="text-sm sm:text-2xl md:text-4xl font-extrabold text-foreground tracking-tight leading-snug line-clamp-2">
-              {current.title}
-            </h1>
-
-            {/* Description (Hidden on mobile to save vertical space) */}
-            <p className="hidden sm:block text-xs sm:text-sm text-muted-foreground leading-relaxed line-clamp-2 md:line-clamp-3 max-w-md">
-              {current.description}
-            </p>
-
-            {/* Price Tag if Product Slide */}
-            {current.price !== null && (
-              <div className="flex items-baseline gap-1.5 pt-0.5 sm:pt-1">
-                <span className={`text-base sm:text-xl md:text-2xl font-black ${theme.primaryText}`}>
-                  {formatCurrency(current.price)}
-                </span>
-                <span className="text-[10px] sm:text-xs text-muted-foreground font-medium">/ item</span>
+          <div className="flex flex-row items-center justify-between gap-3 relative z-10">
+            {/* Left Content */}
+            <div className="flex-1 min-w-0 space-y-1.5 text-left">
+              <div className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full ${theme.badgeBg} border ${theme.softBorder} text-[10px] font-bold shadow-2xs`}>
+                <Leaf className="w-3 h-3 opacity-80 shrink-0" />
+                <span className="truncate max-w-[120px]">{current.badge}</span>
               </div>
-            )}
 
-            {/* CTA Button Actions */}
-            <div className="pt-0.5 sm:pt-2 flex flex-wrap items-center gap-2 sm:gap-3">
-              {current.isCustomProduct && current.id ? (
-                <Link to={`${basePath}/product/${getProductSlug(current.title, current.id)}`}>
+              <h1 className="text-sm font-bold text-foreground tracking-tight leading-snug line-clamp-2">
+                {current.title}
+              </h1>
+
+              {current.price !== null && (
+                <div className="flex items-baseline gap-1 pt-0.5">
+                  <span className={`text-base font-black ${theme.primaryText}`}>
+                    {formatCurrency(current.price)}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground font-medium">/ item</span>
+                </div>
+              )}
+
+              <div className="pt-0.5">
+                {current.isCustomProduct && current.id ? (
+                  <Link to={`${basePath}/product/${getProductSlug(current.title, current.id)}`}>
+                    <Button
+                      size="sm"
+                      className={`h-7 px-3.5 rounded-full ${theme.primaryBg} font-bold text-[10.5px] shadow-xs gap-1 transition-all active:scale-95 cursor-pointer`}
+                    >
+                      <span>{current.ctaText}</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </Button>
+                  </Link>
+                ) : (
                   <Button
                     size="sm"
-                    className={`h-7 sm:h-10 md:h-11 px-3 sm:px-5 md:px-6 rounded-full ${theme.primaryBg} font-bold text-[10.5px] sm:text-xs md:text-sm shadow-xs gap-1 sm:gap-2 transition-all active:scale-95 group cursor-pointer`}
+                    onClick={onCtaClick}
+                    className={`h-7 px-3.5 rounded-full ${theme.primaryBg} font-bold text-[10.5px] shadow-xs gap-1 transition-all active:scale-95 cursor-pointer`}
                   >
                     <span>{current.ctaText}</span>
-                    <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                    <ArrowRight className="w-3 h-3" />
                   </Button>
-                </Link>
-              ) : (
-                <Button
-                  size="sm"
-                  onClick={onCtaClick}
-                  className={`h-7 sm:h-10 md:h-11 px-3 sm:px-5 md:px-6 rounded-full ${theme.primaryBg} font-bold text-[10.5px] sm:text-xs md:text-sm shadow-xs gap-1 sm:gap-2 transition-all active:scale-95 group cursor-pointer`}
-                >
-                  <span>{current.ctaText}</span>
-                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              )}
+                )}
+              </div>
+            </div>
 
-              {current.isCustomProduct && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onCtaClick}
-                  className={`hidden sm:inline-flex h-10 md:h-11 px-4 md:px-5 rounded-full text-xs font-semibold ${theme.softBorder} hover:bg-muted text-foreground`}
-                >
-                  <ShoppingBag className="w-3.5 h-3.5 mr-1.5" />
-                  Lihat Katalog
-                </Button>
-              )}
+            {/* Right Thumbnail */}
+            <div className="shrink-0">
+              <div className={`w-24 h-24 rounded-xl overflow-hidden shadow-xs border ${theme.softBorder} bg-card/90 flex items-center justify-center p-1.5`}>
+                <img
+                  src={current.image}
+                  alt={current.title}
+                  className="w-full h-full object-contain"
+                />
+              </div>
             </div>
           </div>
 
-          {/* Right Image Showcase */}
-          <div className="shrink-0 md:col-span-6 flex justify-center items-center">
-            <div className={`relative w-24 h-24 sm:w-36 sm:h-36 md:w-full md:max-w-lg md:aspect-[16/10] rounded-xl sm:rounded-2xl overflow-hidden shadow-xs sm:shadow-lg border ${theme.softBorder} bg-card/90 group flex items-center justify-center p-1 sm:p-2`}>
-              <img
-                src={current.image}
-                alt={current.title}
-                className="w-full h-full object-contain md:object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/10 sm:from-black/25 via-transparent to-transparent pointer-events-none" />
+          {/* Mobile Dots */}
+          {slides.length > 1 && (
+            <div className="flex items-center justify-center gap-1.5 mt-2.5 relative z-10">
+              {slides.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setActiveSlide(idx)}
+                  aria-label={`Slide ${idx + 1}`}
+                  className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                    activeSlide === idx 
+                      ? `w-5 ${theme.activeDot}` 
+                      : 'w-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/50'
+                  }`}
+                />
+              ))}
             </div>
-          </div>
+          )}
         </div>
+      </div>
 
-        {/* Carousel Pagination Dots */}
-        {slides.length > 1 && (
-          <div className="flex items-center justify-center gap-1.5 sm:gap-2 mt-2.5 sm:mt-5 relative z-10">
-            {slides.map((_, idx) => (
-              <button
-                key={idx}
-                onClick={() => setActiveSlide(idx)}
-                aria-label={`Slide ${idx + 1}`}
-                className={`h-1.5 sm:h-2 rounded-full transition-all duration-300 cursor-pointer ${
-                  activeSlide === idx 
-                    ? `w-5 sm:w-7 ${theme.activeDot}` 
-                    : 'w-1.5 sm:w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50'
-                }`}
-              />
-            ))}
+      {/* 💻 2. DESKTOP & TABLET VIEW (Tampilan Mewah, 12-Kolom, Proporsional & Responsif) */}
+      <div className="hidden md:block">
+        <div className={`bg-gradient-to-br ${theme.gradientCard} border ${theme.softBorder} rounded-3xl p-8 lg:p-12 shadow-xs relative overflow-hidden transition-all duration-500`}>
+          <div className="absolute -top-24 -right-24 w-80 h-80 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="grid grid-cols-12 gap-8 lg:gap-12 items-center relative z-10">
+            {/* Left Col: 7 cols */}
+            <div className="col-span-7 space-y-4 text-left">
+              <div className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full ${theme.badgeBg} border ${theme.softBorder} text-xs font-bold shadow-2xs`}>
+                <Leaf className="w-3.5 h-3.5 opacity-80" />
+                <span>{current.badge}</span>
+              </div>
+
+              <h1 className="text-3xl lg:text-4xl xl:text-5xl font-black text-foreground tracking-tight leading-tight line-clamp-2">
+                {current.title}
+              </h1>
+
+              <p className="text-sm lg:text-base text-muted-foreground leading-relaxed line-clamp-3 max-w-xl">
+                {current.description}
+              </p>
+
+              {current.price !== null && (
+                <div className="flex items-baseline gap-2 pt-1">
+                  <span className={`text-2xl lg:text-3xl font-black ${theme.primaryText}`}>
+                    {formatCurrency(current.price)}
+                  </span>
+                  <span className="text-xs text-muted-foreground font-medium">/ item</span>
+                </div>
+              )}
+
+              <div className="pt-3 flex items-center gap-3">
+                {current.isCustomProduct && current.id ? (
+                  <Link to={`${basePath}/product/${getProductSlug(current.title, current.id)}`}>
+                    <Button
+                      size="lg"
+                      className={`h-11 lg:h-12 px-7 rounded-full ${theme.primaryBg} font-bold text-sm shadow-md gap-2 transition-all active:scale-95 group cursor-pointer`}
+                    >
+                      <span>{current.ctaText}</span>
+                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button
+                    size="lg"
+                    onClick={onCtaClick}
+                    className={`h-11 lg:h-12 px-7 rounded-full ${theme.primaryBg} font-bold text-sm shadow-md gap-2 transition-all active:scale-95 group cursor-pointer`}
+                  >
+                    <span>{current.ctaText}</span>
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </Button>
+                )}
+
+                {current.isCustomProduct && (
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={onCtaClick}
+                    className={`h-11 lg:h-12 px-6 rounded-full text-sm font-semibold ${theme.softBorder} hover:bg-muted text-foreground`}
+                  >
+                    <ShoppingBag className="w-4 h-4 mr-2" />
+                    Lihat Katalog
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Right Col: 5 cols */}
+            <div className="col-span-5 flex justify-center items-center">
+              <div className={`relative w-full aspect-[4/3] lg:aspect-[16/10] rounded-2xl overflow-hidden shadow-xl border ${theme.softBorder} bg-card/90 group`}>
+                <img
+                  src={current.image}
+                  alt={current.title}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent pointer-events-none" />
+              </div>
+            </div>
           </div>
-        )}
+
+          {/* Desktop Dots */}
+          {slides.length > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-6 relative z-10">
+              {slides.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setActiveSlide(idx)}
+                  aria-label={`Slide ${idx + 1}`}
+                  className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
+                    activeSlide === idx 
+                      ? `w-7 ${theme.activeDot}` 
+                      : 'w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </section>
   );
+
 
 };
 
