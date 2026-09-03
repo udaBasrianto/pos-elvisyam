@@ -1,7 +1,9 @@
 package master
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"backend/internal/database"
@@ -25,6 +27,15 @@ func (h *MasterHandler) RegisterRoutes(r *gin.RouterGroup) {
 		cat.POST("", middleware.RequireRole("admin", "manager"), h.CreateCategory)
 		cat.PUT("/:id", middleware.RequireRole("admin", "manager"), h.UpdateCategory)
 		cat.DELETE("/:id", middleware.RequireRole("admin", "manager"), h.DeleteCategory)
+	}
+
+	// Sub-Categories (Master Data dengan Kategori Induk)
+	subCat := r.Group("/sub-categories", middleware.AuthenticateToken())
+	{
+		subCat.GET("", h.GetSubCategories)
+		subCat.POST("", middleware.RequireRole("admin", "manager"), h.CreateSubCategory)
+		subCat.PUT("/:id", middleware.RequireRole("admin", "manager"), h.UpdateSubCategory)
+		subCat.DELETE("/:id", middleware.RequireRole("admin", "manager"), h.DeleteSubCategory)
 	}
 
 	// Brands
@@ -199,6 +210,187 @@ func (h *MasterHandler) DeleteCategory(c *gin.Context) {
 	}
 
 	utils.RespondSuccess(c, "Category deleted successfully", nil)
+}
+
+// -------------------------------------------------------------
+// SUB-CATEGORIES (DENGAN INDUK KATEGORI)
+// -------------------------------------------------------------
+
+type SubCategoryRow struct {
+	ID           string     `json:"id" db:"id"`
+	UserID       string     `json:"user_id" db:"user_id"`
+	CategoryID   string     `json:"category_id" db:"category_id"`
+	CategoryName string     `json:"category_name" db:"category_name"`
+	Name         string     `json:"name" db:"name"`
+	Description  *string    `json:"description" db:"description"`
+	ProductCount int        `json:"product_count" db:"product_count"`
+	CreatedAt    *time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt    *time.Time `json:"updated_at" db:"updated_at"`
+}
+
+func (h *MasterHandler) GetSubCategories(c *gin.Context) {
+	tenantID := c.GetString("tenantId")
+	categoryID := strings.TrimSpace(c.Query("category_id"))
+	categoryName := strings.TrimSpace(c.Query("category"))
+
+	query := `
+		SELECT sc.id, sc.user_id, sc.category_id, COALESCE(c.name, '') as category_name,
+		       sc.name, sc.description,
+		       COALESCE(sc.created_at, CURRENT_TIMESTAMP) as created_at,
+		       COALESCE(sc.updated_at, CURRENT_TIMESTAMP) as updated_at,
+		       (SELECT COUNT(*) FROM products WHERE (sub_category_id = sc.id OR sub_category = sc.name) AND user_id = $1) as product_count
+		FROM sub_categories sc
+		LEFT JOIN categories c ON sc.category_id = c.id
+		WHERE sc.user_id = $1
+	`
+	args := []interface{}{tenantID}
+
+	if categoryID != "" {
+		args = append(args, categoryID)
+		query += fmt.Sprintf(" AND sc.category_id = $%d", len(args))
+	} else if categoryName != "" {
+		args = append(args, categoryName)
+		query += fmt.Sprintf(" AND (c.name = $%d OR sc.category_id IN (SELECT id FROM categories WHERE name = $%d AND user_id = $1))", len(args), len(args))
+	}
+
+	query += " ORDER BY c.name ASC, sc.name ASC"
+
+	var subCategories []SubCategoryRow
+	err := database.DB.Select(&subCategories, query, args...)
+	if err != nil {
+		utils.RespondError(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if subCategories == nil {
+		subCategories = []SubCategoryRow{}
+	}
+	c.JSON(http.StatusOK, subCategories)
+}
+
+func (h *MasterHandler) CreateSubCategory(c *gin.Context) {
+	tenantID := c.GetString("tenantId")
+
+	var req struct {
+		Name         string `json:"name"`
+		CategoryID   string `json:"category_id"`
+		CategoryName string `json:"category_name"`
+		Description  string `json:"description"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Name) == "" {
+		utils.RespondValidationError(c, "Nama sub-kategori wajib diisi")
+		return
+	}
+
+	req.Name = strings.TrimSpace(req.Name)
+	req.CategoryID = strings.TrimSpace(req.CategoryID)
+	req.CategoryName = strings.TrimSpace(req.CategoryName)
+
+	// Resolve category_id if only category_name was provided
+	if req.CategoryID == "" && req.CategoryName != "" {
+		_ = database.DB.Get(&req.CategoryID, "SELECT id FROM categories WHERE name = $1 AND user_id = $2 LIMIT 1", req.CategoryName, tenantID)
+	}
+
+	if req.CategoryID == "" {
+		utils.RespondValidationError(c, "Kategori induk wajib dipilih sebelum menambah sub-kategori")
+		return
+	}
+
+	// Check if already exists in this parent category
+	var existingID string
+	_ = database.DB.Get(&existingID, "SELECT id FROM sub_categories WHERE user_id = $1 AND category_id = $2 AND LOWER(name) = LOWER($3) LIMIT 1", tenantID, req.CategoryID, req.Name)
+	if existingID != "" {
+		var catName string
+		_ = database.DB.Get(&catName, "SELECT name FROM categories WHERE id = $1", req.CategoryID)
+		c.JSON(http.StatusOK, gin.H{
+			"id":            existingID,
+			"user_id":       tenantID,
+			"category_id":   req.CategoryID,
+			"category_name": catName,
+			"name":          req.Name,
+			"description":   req.Description,
+		})
+		return
+	}
+
+	id := utils.GenerateUUID()
+	_, err := database.DB.Exec(`
+		INSERT INTO sub_categories (id, user_id, category_id, name, description)
+		VALUES ($1, $2, $3, $4, $5)
+	`, id, tenantID, req.CategoryID, req.Name, req.Description)
+
+	if err != nil {
+		utils.RespondError(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	var catName string
+	_ = database.DB.Get(&catName, "SELECT name FROM categories WHERE id = $1", req.CategoryID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":            id,
+		"user_id":       tenantID,
+		"category_id":   req.CategoryID,
+		"category_name": catName,
+		"name":          req.Name,
+		"description":   req.Description,
+	})
+}
+
+func (h *MasterHandler) UpdateSubCategory(c *gin.Context) {
+	tenantID := c.GetString("tenantId")
+	id := c.Param("id")
+
+	var req struct {
+		Name         string `json:"name"`
+		CategoryID   string `json:"category_id"`
+		CategoryName string `json:"category_name"`
+		Description  string `json:"description"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Name) == "" {
+		utils.RespondValidationError(c, "Nama sub-kategori wajib diisi")
+		return
+	}
+
+	req.Name = strings.TrimSpace(req.Name)
+	req.CategoryID = strings.TrimSpace(req.CategoryID)
+	req.CategoryName = strings.TrimSpace(req.CategoryName)
+
+	if req.CategoryID == "" && req.CategoryName != "" {
+		_ = database.DB.Get(&req.CategoryID, "SELECT id FROM categories WHERE name = $1 AND user_id = $2 LIMIT 1", req.CategoryName, tenantID)
+	}
+
+	if req.CategoryID == "" {
+		utils.RespondValidationError(c, "Kategori induk wajib dipilih")
+		return
+	}
+
+	_, err := database.DB.Exec(`
+		UPDATE sub_categories
+		SET name = $1, category_id = $2, description = $3, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $4 AND user_id = $5
+	`, req.Name, req.CategoryID, req.Description, id, tenantID)
+
+	if err != nil {
+		utils.RespondError(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	utils.RespondSuccess(c, "Sub-kategori berhasil diperbarui", nil)
+}
+
+func (h *MasterHandler) DeleteSubCategory(c *gin.Context) {
+	tenantID := c.GetString("tenantId")
+	id := c.Param("id")
+
+	// Nullify in products
+	_, _ = database.DB.Exec("UPDATE products SET sub_category_id = NULL WHERE sub_category_id = $1 AND user_id = $2", id, tenantID)
+	_, err := database.DB.Exec("DELETE FROM sub_categories WHERE id = $1 AND user_id = $2", id, tenantID)
+	if err != nil {
+		utils.RespondError(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	utils.RespondSuccess(c, "Sub-kategori berhasil dihapus", nil)
 }
 
 // -------------------------------------------------------------

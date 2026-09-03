@@ -66,6 +66,16 @@ interface Brand {
   name: string;
 }
 
+interface SubCategory {
+  id: string;
+  user_id: string;
+  category_id: string;
+  category_name?: string;
+  name: string;
+  description?: string;
+  product_count?: number;
+}
+
 const Products = () => {
   const { state, addProduct, updateProduct, deleteProduct } = useApp();
   const { products, transactions, isLoading } = state;
@@ -97,6 +107,11 @@ const Products = () => {
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [isSavingNewCategory, setIsSavingNewCategory] = useState(false);
+
+  const [dbSubCategories, setDbSubCategories] = useState<SubCategory[]>([]);
+  const [isCreatingSubCategory, setIsCreatingSubCategory] = useState(false);
+  const [newSubCategoryName, setNewSubCategoryName] = useState("");
+  const [isSavingNewSubCategory, setIsSavingNewSubCategory] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -236,6 +251,7 @@ const Products = () => {
     if (user) {
       loadCategories();
       loadBrands();
+      loadSubCategories();
     }
   }, [user]);
 
@@ -245,6 +261,15 @@ const Products = () => {
       setDbCategories(res.data);
     } catch (error) {
       console.error('Error loading categories:', error);
+    }
+  };
+
+  const loadSubCategories = async () => {
+    try {
+      const res = await api.get('/sub-categories');
+      setDbSubCategories(res.data || []);
+    } catch (error) {
+      console.error('Error loading sub-categories:', error);
     }
   };
 
@@ -303,6 +328,40 @@ const Products = () => {
     }
   };
 
+  const handleQuickCreateSubCategory = async () => {
+    const trimmed = newSubCategoryName.trim();
+    if (!trimmed) {
+      toast.error("Nama sub-kategori tidak boleh kosong");
+      return;
+    }
+    if (!formData.category) {
+      toast.error("Silakan pilih Kategori induk terlebih dahulu!");
+      return;
+    }
+    const parentCat = dbCategories.find(c => c.name === formData.category);
+    const parentCatId = parentCat?.id || "";
+
+    setIsSavingNewSubCategory(true);
+    try {
+      await api.post('/sub-categories', {
+        name: trimmed,
+        category_id: parentCatId,
+        category_name: formData.category,
+      });
+      toast.success(`Sub-kategori "${trimmed}" berhasil dibuat untuk kategori "${formData.category}"!`);
+      await loadSubCategories();
+      setFormData(prev => ({ ...prev, subCategory: trimmed }));
+      setIsCreatingSubCategory(false);
+      setNewSubCategoryName("");
+    } catch (error: any) {
+      console.error("Error creating sub-category:", error);
+      const msg = error.response?.data?.error || error.message;
+      toast.error("Gagal membuat sub-kategori: " + msg);
+    } finally {
+      setIsSavingNewSubCategory(false);
+    }
+  };
+
   const safeProductsList = Array.isArray(products) ? products : [];
   const allCategoryNames = [...new Set([
     ...dbCategories.map(c => c?.name).filter(Boolean),
@@ -316,8 +375,16 @@ const Products = () => {
   ])];
 
   const allSubCategories = [...new Set([
+    ...dbSubCategories.map(sc => sc?.name).filter(Boolean),
     ...safeProductsList.map(p => (p as any).subCategory || (p as any).sub_category).filter(Boolean)
   ])];
+
+  const activeCategoryObj = dbCategories.find(c => c.name === formData.category);
+  const availableSubCategoriesForForm = dbSubCategories.filter(sc => {
+    if (!formData.category) return false;
+    return (activeCategoryObj && sc.category_id === activeCategoryObj.id) ||
+           sc.category_name?.toLowerCase() === formData.category.toLowerCase();
+  });
 
   const filteredProducts = safeProductsList.filter(product => {
     if (!product) return false;
@@ -1065,7 +1132,11 @@ const Products = () => {
                                 setNewCategoryName("");
                                 setIsCreatingCategory(true);
                               } else {
-                                setFormData({ ...formData, category: value });
+                                setFormData(prev => ({
+                                  ...prev,
+                                  category: value,
+                                  subCategory: "" // reset sub-category agar sinkron dengan kategori induk baru
+                                }));
                               }
                             }}
                           >
@@ -1082,25 +1153,111 @@ const Products = () => {
                         )}
                       </div>
 
-                      {/* Sub-Kategori */}
+                      {/* Sub-Kategori (Berinduk pada Kategori) */}
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
-                          <Label htmlFor="subCategory" className="font-semibold text-xs">Sub-Kategori</Label>
-                          <span className="text-[10px] text-muted-foreground">Opsional</span>
+                          <div className="flex items-center gap-1.5">
+                            <Label htmlFor="subCategory" className="font-semibold text-xs">Sub-Kategori</Label>
+                            {formData.category && (
+                              <span className="text-[10px] text-muted-foreground">
+                                (Induk: {formData.category})
+                              </span>
+                            )}
+                          </div>
+                          {!isCreatingSubCategory && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              disabled={!formData.category}
+                              className="h-5 text-xs text-primary font-medium hover:bg-primary/10 px-1.5 rounded flex items-center gap-1 disabled:opacity-40"
+                              onClick={() => {
+                                if (!formData.category) {
+                                  toast.error("Pilih kategori induk terlebih dahulu!");
+                                  return;
+                                }
+                                setNewSubCategoryName("");
+                                setIsCreatingSubCategory(true);
+                              }}
+                              title={!formData.category ? "Pilih kategori induk terlebih dahulu" : "Tambah sub-kategori baru"}
+                            >
+                              <Plus className="w-3 h-3" /> + Sub-Kategori
+                            </Button>
+                          )}
                         </div>
-                        <Input
-                          id="subCategory"
-                          placeholder="Misal: Kapsul Herbal, Madu Hutan, Cairan, dsb..."
-                          value={formData.subCategory}
-                          onChange={(e) => setFormData({ ...formData, subCategory: e.target.value })}
-                          list="subcategories-datalist"
-                          className="text-xs"
-                        />
-                        <datalist id="subcategories-datalist">
-                          {allSubCategories.map((sc, i) => (
-                            <option key={i} value={sc} />
-                          ))}
-                        </datalist>
+
+                        {isCreatingSubCategory ? (
+                          <div className="flex gap-1.5 items-center bg-white dark:bg-slate-950 p-2 rounded-lg border border-primary/40 shadow-sm">
+                            <Input
+                              placeholder={`Sub-kategori untuk ${formData.category}...`}
+                              value={newSubCategoryName}
+                              onChange={(e) => setNewSubCategoryName(e.target.value)}
+                              className="h-8 text-xs flex-1"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleQuickCreateSubCategory();
+                                }
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-8 text-xs px-2.5 font-bold"
+                              onClick={handleQuickCreateSubCategory}
+                              disabled={isSavingNewSubCategory}
+                            >
+                              {isSavingNewSubCategory ? <Loader2 className="w-3 h-3 animate-spin" /> : "OK"}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 text-xs px-1.5"
+                              onClick={() => setIsCreatingSubCategory(false)}
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <Select
+                            value={formData.subCategory || "tanpa-sub"}
+                            disabled={!formData.category}
+                            onValueChange={(value) => {
+                              if (value === '__add_new_sub__') {
+                                setNewSubCategoryName("");
+                                setIsCreatingSubCategory(true);
+                              } else if (value === 'tanpa-sub') {
+                                setFormData({ ...formData, subCategory: "" });
+                              } else {
+                                setFormData({ ...formData, subCategory: value });
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="mt-1">
+                              <SelectValue placeholder={formData.category ? "Pilih Sub-Kategori..." : "Pilih Kategori Induk Terlebih Dahulu"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="tanpa-sub" className="italic text-muted-foreground">
+                                Tanpa Sub-Kategori
+                              </SelectItem>
+                              {availableSubCategoriesForForm.map((sc) => (
+                                <SelectItem key={sc.id} value={sc.name}>
+                                  {sc.name}
+                                </SelectItem>
+                              ))}
+                              {formData.subCategory && !availableSubCategoriesForForm.some(sc => sc.name === formData.subCategory) && (
+                                <SelectItem value={formData.subCategory}>
+                                  {formData.subCategory}
+                                </SelectItem>
+                              )}
+                              <SelectItem value="__add_new_sub__" className="text-primary font-semibold border-t mt-1 pt-1">
+                                ✨ + Tambah Sub-Kategori Baru...
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
                       </div>
                     </div>
 

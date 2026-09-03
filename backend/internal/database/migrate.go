@@ -1353,6 +1353,23 @@ func AutoMigrate(db *sqlx.DB) error {
 		`ALTER TABLE profit_sharing_settings DROP CONSTRAINT IF EXISTS profit_sharing_settings_tenant_id_key`,
 		`CREATE INDEX IF NOT EXISTS idx_profit_sharing_settings_user ON profit_sharing_settings(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_profit_sharing_settings_tenant ON profit_sharing_settings(tenant_id)`,
+
+		// -------------------------------------------------------------
+		// SUB-CATEGORIES MASTER TABLE (DENGAN INDUK CATEGORY_ID)
+		// -------------------------------------------------------------
+		`CREATE TABLE IF NOT EXISTS sub_categories (
+			id VARCHAR(36) PRIMARY KEY,
+			user_id VARCHAR(36) NOT NULL,
+			category_id VARCHAR(36) NOT NULL,
+			name VARCHAR(100) NOT NULL,
+			description TEXT,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_sub_categories_user ON sub_categories(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_sub_categories_cat ON sub_categories(category_id)`,
+		`ALTER TABLE products ADD COLUMN IF NOT EXISTS sub_category_id VARCHAR(36)`,
+		`CREATE INDEX IF NOT EXISTS idx_products_sub_category_id ON products(sub_category_id)`,
 	}
 
 	for _, q := range queries {
