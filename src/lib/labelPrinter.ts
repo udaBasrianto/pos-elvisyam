@@ -168,9 +168,12 @@ export interface LabelPrintOptions {
   marginOuterMm?: number; // Margin tepi luar kertas kiri/kanan (default 1.5mm)
   paddingHorizontalMm?: number; // Padding dalam stiker kiri & kanan (default 1.0mm)
   paddingVerticalMm?: number; // Padding dalam stiker atas & bawah (default 0.8mm)
+  sectionGapMm?: number; // Jarak / padding vertikal antar section/elemen barcode (default 0.5mm, min 0mm)
   copies: number;
   showStoreName: boolean;
   showName: boolean;
+  productNameTwoLines?: boolean; // Izinkan nama produk menjadi 2 baris jika nama produk panjang
+  productNameMaxLines?: number; // Maksimal baris nama produk (1 atau 2, default 2)
   showBarcode: boolean;
   showBarcodeText: boolean;
   showPrice: boolean;
@@ -196,6 +199,7 @@ export interface LabelPrintOptions {
 
   // 🎯 Freeform Drag & Drop Visual Layout Offsets (in mm)
   elementPositions?: LabelElementPositions;
+  elementPaddings?: LabelElementPaddings;
   elementOrder?: LabelElementKey[];
 }
 
@@ -206,7 +210,13 @@ export interface LabelElementPosition {
   y: number; // Vertical offset in mm (-30 to +30)
 }
 
+export interface LabelElementPadding {
+  vertical?: number; // Padding vertikal atas & bawah dalam mm
+  horizontal?: number; // Padding horizontal kiri & kanan dalam mm
+}
+
 export type LabelElementPositions = Partial<Record<LabelElementKey, LabelElementPosition>>;
+export type LabelElementPaddings = Partial<Record<LabelElementKey, LabelElementPadding>>;
 
 export const DEFAULT_LABEL_ELEMENT_ORDER: LabelElementKey[] = [
   'storeName',
@@ -228,9 +238,12 @@ export const DEFAULT_LABEL_OPTIONS: LabelPrintOptions = {
   marginOuterMm: 1.5,
   paddingHorizontalMm: 1.0,
   paddingVerticalMm: 0.8,
+  sectionGapMm: 0.5,
   copies: 3,
   showStoreName: true,
   showName: true,
+  productNameTwoLines: true,
+  productNameMaxLines: 2,
   showBarcode: true,
   showBarcodeText: true,
   showPrice: true,
@@ -253,6 +266,14 @@ export const DEFAULT_LABEL_OPTIONS: LabelPrintOptions = {
   barcodeAreaWidthPercent: 88,
 
   elementPositions: {},
+  elementPaddings: {
+    storeName: { vertical: 0, horizontal: 0 },
+    productName: { vertical: 0.2, horizontal: 0 },
+    barcode: { vertical: 0.3, horizontal: 0 },
+    barcodeText: { vertical: 0.2, horizontal: 0 },
+    price: { vertical: 0.2, horizontal: 0 },
+    sku: { vertical: 0.2, horizontal: 0 },
+  },
   elementOrder: DEFAULT_LABEL_ELEMENT_ORDER,
 };
 
@@ -283,36 +304,40 @@ export function getProportionalLabelDimensions(
   const scale = Math.max(0.7, Math.min(2.8, Math.sqrt((w * h) / (33 * 15))));
 
   // If specific barcodeHeightMm is given:
-  // Usually barcode takes ~45% of total label height (with minimum 10mm, maximum 60mm)
+  // Usually barcode takes ~45% of total label height (with minimum 1mm, maximum 60mm)
   let barcodeHeightMm = base.barcodeHeightMm !== undefined
-    ? Math.max(10, Math.min(60, base.barcodeHeightMm))
-    : Math.max(10, Math.min(50, Math.round(h * 0.46)));
+    ? Math.max(1, Math.min(60, base.barcodeHeightMm))
+    : Math.max(1, Math.min(50, Math.round(h * 0.46)));
 
   // Relative ratio of barcode height to base (18mm)
-  const barcodeRatio = Math.max(0.65, Math.min(2.5, barcodeHeightMm / 18));
+  const barcodeRatio = Math.max(0.1, Math.min(2.5, barcodeHeightMm / 18));
 
-  // Harmonized font sizes scaling with both label dimensions and barcode height
+  // Harmonized font sizes scaling with both label dimensions and barcode height (minimum 1px / 1mm)
   const storeNameFontSize = Number(
-    (Math.max(6, Math.min(18, 7.5 * Math.pow(scale, 0.6) * Math.pow(barcodeRatio, 0.4)))).toFixed(1)
+    (Math.max(1, Math.min(18, 7.5 * Math.pow(scale, 0.6) * Math.pow(barcodeRatio, 0.4)))).toFixed(1)
   );
   const productNameFontSize = Number(
-    (Math.max(7, Math.min(22, 8.8 * Math.pow(scale, 0.6) * Math.pow(barcodeRatio, 0.4)))).toFixed(1)
+    (Math.max(1, Math.min(22, 8.8 * Math.pow(scale, 0.6) * Math.pow(barcodeRatio, 0.4)))).toFixed(1)
   );
   const barcodeTextFontSize = Number(
-    (Math.max(5.5, Math.min(18, 7.2 * Math.pow(scale, 0.6) * Math.pow(barcodeRatio, 0.35)))).toFixed(1)
+    (Math.max(1, Math.min(18, 7.2 * Math.pow(scale, 0.6) * Math.pow(barcodeRatio, 0.35)))).toFixed(1)
   );
   const priceFontSize = Number(
-    (Math.max(9, Math.min(28, 12.0 * Math.pow(scale, 0.6) * Math.pow(barcodeRatio, 0.4)))).toFixed(1)
+    (Math.max(1, Math.min(28, 12.0 * Math.pow(scale, 0.6) * Math.pow(barcodeRatio, 0.4)))).toFixed(1)
   );
 
   // Barcode area width & width ratio multiplier
-  const barcodeAreaWidthPercent = Math.max(
-    70,
-    Math.min(96, Math.round(86 + (w > 35 ? 4 : 0) + (barcodeHeightMm > 20 ? 2 : 0)))
-  );
-  const barcodeWidthRatio = Number(
-    (Math.max(0.8, Math.min(2.4, 0.9 + (w / 33 - 1) * 0.4 + (barcodeHeightMm / 18 - 1) * 0.2))).toFixed(1)
-  );
+  const barcodeAreaWidthPercent = base.barcodeAreaWidthPercent !== undefined
+    ? Math.max(50, Math.min(100, base.barcodeAreaWidthPercent))
+    : Math.max(
+        70,
+        Math.min(96, Math.round(86 + (w > 35 ? 4 : 0) + (barcodeHeightMm > 20 ? 2 : 0)))
+      );
+  const barcodeWidthRatio = base.barcodeWidthRatio !== undefined
+    ? Math.max(0.5, Math.min(3.0, base.barcodeWidthRatio))
+    : Number(
+        (Math.max(0.8, Math.min(2.4, 0.9 + (w / 33 - 1) * 0.4 + (barcodeHeightMm / 18 - 1) * 0.2))).toFixed(1)
+      );
 
   // Minimum suggested stiker height if barcode height is changed to something larger
   const minRequiredH = Math.ceil(barcodeHeightMm / 0.65) + 2;
@@ -331,6 +356,72 @@ export function getProportionalLabelDimensions(
 }
 
 /**
+ * ⚡ Auto-Fix & Calculate Optimal Barcode Sticker Dimensions
+ * Automatically computes and locks column widths, safety margins, print area, and proportional typography.
+ */
+export function autoFixLabelDimensions(
+  presetIdOrParams: string | { widthMm: number; heightMm: number; columns: number }
+): LabelPrintOptions {
+  let preset: LabelPreset | undefined;
+  if (typeof presetIdOrParams === 'string') {
+    preset = LABEL_PRESETS.find((p) => p.id === presetIdOrParams) || LABEL_PRESETS[1]; // default 33x15-3col
+  }
+
+  const w = preset ? preset.widthMm : (presetIdOrParams as any).widthMm || 33;
+  const h = preset ? preset.heightMm : (presetIdOrParams as any).heightMm || 15;
+  const cols = preset ? preset.columns : (presetIdOrParams as any).columns || 3;
+  const gapH = preset?.gapHorizontalMm ?? (cols > 1 ? 2 : 0);
+  const gapV = preset?.gapVerticalMm ?? 2;
+
+  // Compute proportional barcode height (typically 40-50% of sticker height, min 5mm)
+  const autoBarcodeHeightMm = Math.max(5, Math.min(35, Math.round(h * 0.44)));
+
+  // Safety margins
+  const paddingH = Math.max(0.6, Math.min(1.5, Number((w * 0.03).toFixed(1))));
+  const paddingV = Math.max(0.5, Math.min(1.2, Number((h * 0.04).toFixed(1))));
+
+  // Safe barcode area width percent (88% - 92% to avoid edge cut)
+  const barcodeAreaWidthPercent = 90;
+
+  // Typography auto-fit based on sticker dimensions
+  const productNameFontSize = Math.max(6, Math.min(13, Math.round(h * 0.45 + (w > 35 ? 1 : 0))));
+  const barcodeTextFontSize = Math.max(5.5, Math.min(10, Math.round(h * 0.35)));
+  const priceFontSize = Math.max(7, Math.min(16, Math.round(h * 0.6)));
+  const storeNameFontSize = Math.max(5.5, Math.min(9, Math.round(h * 0.35)));
+
+  return {
+    ...DEFAULT_LABEL_OPTIONS,
+    presetId: preset?.id || `${w}x${h}-${cols}col`,
+    widthMm: w,
+    heightMm: h,
+    columns: cols,
+    gapHorizontalMm: gapH,
+    gapVerticalMm: gapV,
+    paddingHorizontalMm: paddingH,
+    paddingVerticalMm: paddingV,
+    barcodeHeightMm: autoBarcodeHeightMm,
+    barcodeAreaWidthPercent,
+    barcodeWidthRatio: 1.0,
+    productNameFontSize,
+    barcodeTextFontSize,
+    priceFontSize,
+    storeNameFontSize,
+    sectionGapMm: 0.4,
+    textAlign: 'center',
+    elementOrder: DEFAULT_LABEL_ELEMENT_ORDER,
+    elementPositions: {},
+    elementPaddings: {
+      storeName: { vertical: 0.1, horizontal: 0 },
+      productName: { vertical: 0.2, horizontal: 0 },
+      barcode: { vertical: 0.2, horizontal: 0 },
+      barcodeText: { vertical: 0.1, horizontal: 0 },
+      price: { vertical: 0.2, horizontal: 0 },
+      sku: { vertical: 0.1, horizontal: 0 },
+    },
+  };
+}
+
+/**
  * Loads label printing configuration from localStorage, safely merged with defaults
  */
 export function loadLabelOptions(): LabelPrintOptions {
@@ -341,11 +432,17 @@ export function loadLabelOptions(): LabelPrintOptions {
       return {
         ...DEFAULT_LABEL_OPTIONS,
         ...parsed,
+        sectionGapMm: parsed.sectionGapMm !== undefined ? parsed.sectionGapMm : DEFAULT_LABEL_OPTIONS.sectionGapMm,
+        paddingVerticalMm: parsed.paddingVerticalMm !== undefined ? parsed.paddingVerticalMm : DEFAULT_LABEL_OPTIONS.paddingVerticalMm,
+        paddingHorizontalMm: parsed.paddingHorizontalMm !== undefined ? parsed.paddingHorizontalMm : DEFAULT_LABEL_OPTIONS.paddingHorizontalMm,
+        productNameTwoLines: parsed.productNameTwoLines !== undefined ? parsed.productNameTwoLines : true,
+        productNameMaxLines: parsed.productNameMaxLines !== undefined ? parsed.productNameMaxLines : 2,
         elementOrder:
           Array.isArray(parsed.elementOrder) && parsed.elementOrder.length > 0
             ? parsed.elementOrder
             : DEFAULT_LABEL_ELEMENT_ORDER,
         elementPositions: parsed.elementPositions || {},
+        elementPaddings: parsed.elementPaddings || DEFAULT_LABEL_OPTIONS.elementPaddings || {},
       };
     }
   } catch (err) {
@@ -482,9 +579,11 @@ export function generateTsplLabel(
       const price = opts.showPrice && product.price !== undefined ? formatRupiah(product.price) : '';
       const sku = (product.sku || '').trim();
 
-      // Render elements in user-configured order
+      // Render elements in user-configured order with custom section padding/gap
       const order = opts.elementOrder || DEFAULT_LABEL_ELEMENT_ORDER;
       const tsplAlign = opts.textAlign === 'left' ? 1 : opts.textAlign === 'right' ? 3 : 2;
+      const sectionGap = opts.sectionGapMm ?? 0.5;
+      const sectionGapDots = Math.floor(sectionGap * dotsPerMm);
       const getBaseX = (offX: number = 0) => {
         if (opts.textAlign === 'left') {
           return colOffsetX + Math.floor((opts.paddingHorizontalMm ?? (isCompact ? 0.6 : 1.0)) * dotsPerMm) + Math.floor(offX * dotsPerMm);
@@ -495,40 +594,55 @@ export function generateTsplLabel(
       };
 
       for (const elemKey of order) {
+        const pad = opts.elementPaddings?.[elemKey] || { vertical: 0, horizontal: 0 };
+        const padVDots = Math.floor((pad.vertical || 0) * dotsPerMm);
+        const padHDots = Math.floor((pad.horizontal || 0) * dotsPerMm);
+        currentY += padVDots;
+
         if (elemKey === 'storeName' && opts.showStoreName && store) {
           const maxStoreChars = Math.max(14, Math.floor(w / 1.8));
           const cleanStore = store.slice(0, maxStoreChars);
-          const posX = getBaseX(offStore.x);
-          const posY = currentY + Math.floor(offStore.y * dotsPerMm);
+          const posX = Math.max(0, getBaseX(offStore.x) + padHDots);
+          const posY = Math.max(0, currentY + Math.floor(offStore.y * dotsPerMm));
           tspl += `TEXT ${posX},${posY},"1",0,1,1,${tsplAlign},"${escapeTspl(cleanStore)}"\r\n`;
-          currentY += isCompact ? 9 : 11;
+          currentY += (isCompact ? 9 : 11) + sectionGapDots + padVDots;
         } else if (elemKey === 'productName' && opts.showName && name) {
-          const maxChars = Math.max(18, Math.floor(w / 1.1));
-          const cleanName = name.slice(0, maxChars);
-          const posX = getBaseX(offName.x);
-          const posY = currentY + Math.floor(offName.y * dotsPerMm);
-          tspl += `TEXT ${posX},${posY},"1",0,1,1,${tsplAlign},"${escapeTspl(cleanName)}"\r\n`;
-          currentY += isCompact ? 10 : 12;
+          const allowTwoLines = opts.productNameTwoLines !== false;
+          const maxCharsPerLine = Math.max(14, Math.floor(w / 1.5));
+          const [l1, l2] = splitProductNameToTwoLines(name, maxCharsPerLine);
+          const posX = Math.max(0, getBaseX(offName.x) + padHDots);
+          const posY = Math.max(0, currentY + Math.floor(offName.y * dotsPerMm));
+
+          if (allowTwoLines && l2) {
+            const lineH = isCompact ? 9 : 11;
+            tspl += `TEXT ${posX},${posY},"1",0,1,1,${tsplAlign},"${escapeTspl(l1)}"\r\n`;
+            tspl += `TEXT ${posX},${posY + lineH},"1",0,1,1,${tsplAlign},"${escapeTspl(l2)}"\r\n`;
+            currentY += lineH + (isCompact ? 9 : 11) + sectionGapDots + padVDots;
+          } else {
+            const cleanName = allowTwoLines ? l1 : name.slice(0, Math.max(18, Math.floor(w / 1.1)));
+            tspl += `TEXT ${posX},${posY},"1",0,1,1,${tsplAlign},"${escapeTspl(cleanName)}"\r\n`;
+            currentY += (isCompact ? 10 : 12) + sectionGapDots + padVDots;
+          }
         } else if (elemKey === 'barcode' && opts.showBarcode && code) {
           currentY += 1; // Quiet margin before barcode
           const priceH = (opts.showPrice && price) ? (isCompact ? 13 : 16) : 0;
           const digitsH = (opts.showBarcodeText && code) ? (isCompact ? 9 : 11) : 0;
           const bottomReserved = priceH + digitsH + 2;
-          const userBcDots = opts.barcodeHeightMm ? Math.floor(opts.barcodeHeightMm * dotsPerMm) : 0;
-          const maxAvailableDots = Math.max(10, singleLabelH - currentY - bottomReserved);
-          const barcodeHeight = userBcDots > 0 ? Math.min(userBcDots, maxAvailableDots) : Math.max(14, Math.min(isCompact ? 24 : 38, maxAvailableDots));
+          const userBcDots = opts.barcodeHeightMm ? Math.max(8, Math.floor(opts.barcodeHeightMm * dotsPerMm)) : 0;
+          const maxAvailableDots = Math.max(8, singleLabelH - currentY - bottomReserved);
+          const barcodeHeight = userBcDots > 0 ? Math.min(userBcDots, maxAvailableDots) : Math.max(8, Math.min(isCompact ? 24 : 38, maxAvailableDots));
 
           if (opts.barcodeType === 'QR') {
             const qrCellSize = Math.max(2, Math.min(5, Math.floor(singleLabelH / 8)));
-            let startX = colCenterX - (qrCellSize * 8) + Math.floor(offBc.x * dotsPerMm);
+            let startX = colCenterX - (qrCellSize * 8) + Math.floor(offBc.x * dotsPerMm) + padHDots;
             if (opts.textAlign === 'left') {
-              startX = colOffsetX + 4 + Math.floor(offBc.x * dotsPerMm);
+              startX = colOffsetX + 4 + Math.floor(offBc.x * dotsPerMm) + padHDots;
             } else if (opts.textAlign === 'right') {
-              startX = colOffsetX + singleLabelW - (qrCellSize * 16) - 4 + Math.floor(offBc.x * dotsPerMm);
+              startX = colOffsetX + singleLabelW - (qrCellSize * 16) - 4 + Math.floor(offBc.x * dotsPerMm) - padHDots;
             }
-            const startY = currentY + Math.floor(offBc.y * dotsPerMm);
-            tspl += `QRCODE ${startX},${startY},M,${qrCellSize},A,0,"${escapeTspl(code)}"\r\n`;
-            currentY += (qrCellSize * 16) + 2;
+            const startY = Math.max(0, currentY + Math.floor(offBc.y * dotsPerMm));
+            tspl += `QRCODE ${Math.max(0, startX)},${startY},M,${qrCellSize},A,0,"${escapeTspl(code)}"\r\n`;
+            currentY += (qrCellSize * 16) + 2 + sectionGapDots + padVDots;
           } else {
             let tsplType = "128";
             if (opts.barcodeType === 'EAN13') tsplType = "EAN13";
@@ -538,36 +652,58 @@ export function generateTsplLabel(
             else if (opts.barcodeType === 'ITF') tsplType = "ITF14";
             else if (opts.barcodeType === 'CODABAR') tsplType = "CODA";
 
-            const barcodeAreaPct = (opts.barcodeAreaWidthPercent ?? 92) / 100;
-            const estBarcodeWidth = Math.min(singleLabelW - 8, Math.floor(singleLabelW * barcodeAreaPct));
-            let startX = colOffsetX + Math.floor((singleLabelW - estBarcodeWidth) / 2) + Math.floor(offBc.x * dotsPerMm);
-            if (opts.textAlign === 'left') {
-              startX = colOffsetX + 4 + Math.floor(offBc.x * dotsPerMm);
-            } else if (opts.textAlign === 'right') {
-              startX = colOffsetX + singleLabelW - estBarcodeWidth - 4 + Math.floor(offBc.x * dotsPerMm);
-            }
-            const startY = currentY + Math.floor(offBc.y * dotsPerMm);
-            
             // humanReadable = 0 to prevent hardware overlapping numbers!
-            tspl += `BARCODE ${startX},${startY},"${tsplType}",${barcodeHeight},0,0,1,1,"${escapeTspl(code)}"\r\n`;
-            currentY += barcodeHeight + 2;
+            // Narrow and wide bar width derived from barcodeWidthRatio
+            const narrowBar = Math.max(1, Math.min(4, Math.round(opts.barcodeWidthRatio || 1.0)));
+            const wideBar = Math.max(narrowBar + 1, Math.round(narrowBar * 2));
+
+            // Calculate precise barcode width in dots for 100% true horizontal centering:
+            let estimatedBarcodeDots = 0;
+            const cleanCode = (code || '').trim();
+            if (tsplType === 'EAN13' || tsplType === 'UPCA') {
+              estimatedBarcodeDots = 95 * narrowBar;
+            } else if (tsplType === 'EAN8') {
+              estimatedBarcodeDots = 67 * narrowBar;
+            } else if (tsplType === '39') {
+              estimatedBarcodeDots = (cleanCode.length + 2) * (3 * wideBar + 7 * narrowBar);
+            } else if (tsplType === 'ITF14') {
+              estimatedBarcodeDots = ((cleanCode.length * 2 + 1) * wideBar + (cleanCode.length * 3 + 6) * narrowBar);
+            } else {
+              // Code 128 (Start: 11, Check: 11, Stop: 13, Term: 2 = 37 modules)
+              const isAllDigits = /^\d+$/.test(cleanCode);
+              const dataChars = isAllDigits ? Math.ceil(cleanCode.length / 2) : cleanCode.length;
+              const totalModules = (dataChars * 11) + 37;
+              estimatedBarcodeDots = totalModules * narrowBar;
+            }
+
+            // Center exactly inside the label column:
+            let startX = colOffsetX + Math.max(0, Math.floor((singleLabelW - estimatedBarcodeDots) / 2)) + Math.floor(offBc.x * dotsPerMm) + padHDots;
+            if (opts.textAlign === 'left') {
+              startX = colOffsetX + 4 + Math.floor(offBc.x * dotsPerMm) + padHDots;
+            } else if (opts.textAlign === 'right') {
+              startX = colOffsetX + Math.max(0, singleLabelW - estimatedBarcodeDots - 4) + Math.floor(offBc.x * dotsPerMm) - padHDots;
+            }
+            const startY = Math.max(0, currentY + Math.floor(offBc.y * dotsPerMm));
+
+            tspl += `BARCODE ${Math.max(0, startX)},${startY},"${tsplType}",${barcodeHeight},0,0,${narrowBar},${wideBar},"${escapeTspl(code)}"\r\n`;
+            currentY += barcodeHeight + 2 + sectionGapDots + padVDots;
           }
         } else if (elemKey === 'barcodeText' && opts.showBarcodeText && code) {
-          const posX = getBaseX(offBct.x);
-          const posY = currentY + Math.floor(offBct.y * dotsPerMm);
+          const posX = Math.max(0, getBaseX(offBct.x) + padHDots);
+          const posY = Math.max(0, currentY + Math.floor(offBct.y * dotsPerMm));
           tspl += `TEXT ${posX},${posY},"1",0,1,1,${tsplAlign},"${escapeTspl(code)}"\r\n`;
-          currentY += isCompact ? 9 : 11;
+          currentY += (isCompact ? 9 : 11) + sectionGapDots + padVDots;
         } else if (elemKey === 'price' && opts.showPrice && price) {
-          const posX = getBaseX(offPrice.x);
-          const posY = currentY + Math.floor(offPrice.y * dotsPerMm);
+          const posX = Math.max(0, getBaseX(offPrice.x) + padHDots);
+          const posY = Math.max(0, currentY + Math.floor(offPrice.y * dotsPerMm));
           tspl += `TEXT ${posX},${posY},"2",0,1,1,${tsplAlign},"${escapeTspl(price)}"\r\n`;
-          currentY += isCompact ? 12 : 14;
+          currentY += (isCompact ? 12 : 14) + sectionGapDots + padVDots;
         } else if (elemKey === 'sku' && opts.showSku && sku) {
           const offSku = opts.elementPositions?.sku || { x: 0, y: 0 };
-          const posX = getBaseX(offSku.x);
-          const posY = currentY + Math.floor(offSku.y * dotsPerMm);
+          const posX = Math.max(0, getBaseX(offSku.x) + padHDots);
+          const posY = Math.max(0, currentY + Math.floor(offSku.y * dotsPerMm));
           tspl += `TEXT ${posX},${posY},"1",0,1,1,${tsplAlign},"${escapeTspl(sku)}"\r\n`;
-          currentY += isCompact ? 9 : 11;
+          currentY += (isCompact ? 9 : 11) + sectionGapDots + padVDots;
         }
       }
     }
@@ -614,7 +750,13 @@ export function generateEscPosLabel(product: LabelProductData, opts: LabelPrintO
 
     if (opts.showName && name) {
       push([ESC, 0x21, 0x01]);
-      pushText(name.slice(0, 32) + '\n');
+      if (opts.productNameTwoLines !== false) {
+        const [l1, l2] = splitProductNameToTwoLines(name, 22);
+        pushText(l1 + '\n');
+        if (l2) pushText(l2 + '\n');
+      } else {
+        pushText(name.slice(0, 32) + '\n');
+      }
     }
 
     if (opts.showBarcode && code) {
@@ -720,60 +862,98 @@ export async function generateRasterLabelBitmap(
     const barcodeTextFontPx = opts.barcodeTextFontSize || 8;
     const priceFontPx = opts.priceFontSize || 12;
     const fw = opts.fontWeight || '800';
+    const sectionGap = opts.sectionGapMm ?? 0.5;
+    const sectionGapDots = Math.floor(sectionGap * dpmm);
+
     for (const elemKey of order) {
+      const elemPad = opts.elementPaddings?.[elemKey] || { vertical: 0, horizontal: 0 };
+      const elemPadVDots = Math.floor((elemPad.vertical || 0) * dpmm);
+      const elemPadHDots = Math.floor((elemPad.horizontal || 0) * dpmm);
+      y += elemPadVDots;
+
       if (elemKey === 'storeName' && opts.showStoreName && store) {
         ctx.font = `bold ${storeFontPx}px ${fontFamilyCss}`;
-        ctx.fillText(store.slice(0, 18), getBaseRasterX(offStore.x), y + storeFontPx * 0.8 + offStore.y * dpmm);
-        y += storeFontPx + 2;
+        ctx.fillText(store.slice(0, 18), getBaseRasterX(offStore.x + (elemPad.horizontal || 0)), y + storeFontPx * 0.8 + offStore.y * dpmm);
+        y += storeFontPx + 2 + sectionGapDots + elemPadVDots;
       } else if (elemKey === 'productName' && opts.showName && name) {
         const availableW = singleLabelW - Math.floor(padH * 2 * dpmm);
+        const allowTwoLines = opts.productNameTwoLines !== false;
         let fontSize = productFontPx;
         ctx.font = `${fw} ${fontSize}px ${fontFamilyCss}`;
-        let textWidth = ctx.measureText(name).width;
-        while (textWidth > availableW && fontSize > 5.0) {
-          fontSize -= 0.5;
-          ctx.font = `${fw} ${fontSize}px ${fontFamilyCss}`;
-          textWidth = ctx.measureText(name).width;
+
+        if (allowTwoLines) {
+          const maxCharsPerLine = Math.max(14, Math.floor(wMm / 1.5));
+          const [l1, l2] = splitProductNameToTwoLines(name, maxCharsPerLine);
+          if (l2) {
+            let maxW = Math.max(ctx.measureText(l1).width, ctx.measureText(l2).width);
+            while (maxW > availableW && fontSize > 5.0) {
+              fontSize -= 0.5;
+              ctx.font = `${fw} ${fontSize}px ${fontFamilyCss}`;
+              maxW = Math.max(ctx.measureText(l1).width, ctx.measureText(l2).width);
+            }
+            ctx.fillText(l1, getBaseRasterX(offName.x + (elemPad.horizontal || 0)), y + fontSize * 0.8 + offName.y * dpmm, availableW);
+            y += fontSize + 1;
+            ctx.fillText(l2, getBaseRasterX(offName.x + (elemPad.horizontal || 0)), y + fontSize * 0.8 + offName.y * dpmm, availableW);
+            y += fontSize + 2 + sectionGapDots + elemPadVDots;
+          } else {
+            let textWidth = ctx.measureText(name).width;
+            while (textWidth > availableW && fontSize > 5.0) {
+              fontSize -= 0.5;
+              ctx.font = `${fw} ${fontSize}px ${fontFamilyCss}`;
+              textWidth = ctx.measureText(name).width;
+            }
+            ctx.fillText(name, getBaseRasterX(offName.x + (elemPad.horizontal || 0)), y + fontSize * 0.8 + offName.y * dpmm, availableW);
+            y += fontSize + 2 + sectionGapDots + elemPadVDots;
+          }
+        } else {
+          let textWidth = ctx.measureText(name).width;
+          while (textWidth > availableW && fontSize > 5.0) {
+            fontSize -= 0.5;
+            ctx.font = `${fw} ${fontSize}px ${fontFamilyCss}`;
+            textWidth = ctx.measureText(name).width;
+          }
+          ctx.fillText(name, getBaseRasterX(offName.x + (elemPad.horizontal || 0)), y + fontSize * 0.8 + offName.y * dpmm, availableW);
+          y += fontSize + 2 + sectionGapDots + elemPadVDots;
         }
-        ctx.fillText(name, getBaseRasterX(offName.x), y + fontSize * 0.8 + offName.y * dpmm, availableW);
-        y += fontSize + 2;
       } else if (elemKey === 'barcode' && opts.showBarcode && code) {
         y += 2; // small quiet zone
         const barcodePattern = getCode128Pattern(code);
         if (barcodePattern) {
           const digitsH = (opts.showBarcodeText && code) ? barcodeTextFontPx + 2 : 0;
           const priceH = (opts.showPrice && price) ? priceFontPx + 2 : 0;
-          const barH = Math.max(16, Math.min(48, canvas.height - y - digitsH - priceH - 3));
+          const userBcDots = opts.barcodeHeightMm ? Math.max(8, Math.round(opts.barcodeHeightMm * dpmm)) : 0;
+          const maxAvailableDots = Math.max(8, canvas.height - y - digitsH - priceH - 3);
+          const barH = userBcDots > 0 ? Math.min(userBcDots, maxAvailableDots) : Math.max(8, Math.min(48, maxAvailableDots));
           const barW = Math.min(singleLabelW - 12, Math.floor(singleLabelW * ((opts.barcodeAreaWidthPercent ?? 92) / 100)));
-          let startX = colOffsetX + Math.floor((singleLabelW - barW) / 2) + offBc.x * dpmm;
+          let startX = colOffsetX + Math.floor((singleLabelW - barW) / 2) + offBc.x * dpmm + elemPadHDots;
           if (opts.textAlign === 'left') {
-            startX = colOffsetX + Math.floor(padH * dpmm) + offBc.x * dpmm;
+            startX = colOffsetX + Math.floor(padH * dpmm) + offBc.x * dpmm + elemPadHDots;
           } else if (opts.textAlign === 'right') {
-            startX = colOffsetX + singleLabelW - barW - Math.floor(padH * dpmm) + offBc.x * dpmm;
+            startX = colOffsetX + singleLabelW - barW - Math.floor(padH * dpmm) + offBc.x * dpmm - elemPadHDots;
           }
           const startY = y + offBc.y * dpmm;
-          const moduleW = barW / barcodePattern.length;
+          const moduleW = (barW / barcodePattern.length) * (opts.barcodeWidthRatio || 1.0);
 
           for (let i = 0; i < barcodePattern.length; i++) {
             if (barcodePattern[i] === '1') {
               ctx.fillRect(startX + i * moduleW, startY, Math.ceil(moduleW), barH);
             }
           }
-          y += barH + 2;
+          y += barH + 2 + sectionGapDots + elemPadVDots;
         }
       } else if (elemKey === 'barcodeText' && opts.showBarcodeText && code) {
         ctx.font = `bold ${barcodeTextFontPx}px ${fontFamilyCss}`;
-        ctx.fillText(code, getBaseRasterX(offBct.x), y + barcodeTextFontPx * 0.8 + offBct.y * dpmm);
-        y += barcodeTextFontPx + 2;
+        ctx.fillText(code, getBaseRasterX(offBct.x + (elemPad.horizontal || 0)), y + barcodeTextFontPx * 0.8 + offBct.y * dpmm);
+        y += barcodeTextFontPx + 2 + sectionGapDots + elemPadVDots;
       } else if (elemKey === 'price' && opts.showPrice && price) {
         ctx.font = `${fw} ${priceFontPx}px ${fontFamilyCss}`;
-        ctx.fillText(price, getBaseRasterX(offPrice.x), y + priceFontPx * 0.85 + offPrice.y * dpmm);
-        y += priceFontPx + 2;
+        ctx.fillText(price, getBaseRasterX(offPrice.x + (elemPad.horizontal || 0)), y + priceFontPx * 0.85 + offPrice.y * dpmm);
+        y += priceFontPx + 2 + sectionGapDots + elemPadVDots;
       } else if (elemKey === 'sku' && opts.showSku && sku) {
         const offSku = opts.elementPositions?.sku || { x: 0, y: 0 };
         ctx.font = `bold ${barcodeTextFontPx}px ${fontFamilyCss}`;
-        ctx.fillText(sku, getBaseRasterX(offSku.x), y + barcodeTextFontPx * 0.8 + offSku.y * dpmm);
-        y += barcodeTextFontPx + 2;
+        ctx.fillText(sku, getBaseRasterX(offSku.x + (elemPad.horizontal || 0)), y + barcodeTextFontPx * 0.8 + offSku.y * dpmm);
+        y += barcodeTextFontPx + 2 + sectionGapDots + elemPadVDots;
       }
     }
   }
@@ -831,12 +1011,42 @@ export async function generateRasterLabelBitmap(
 
 // ── BROWSER SYSTEM PRINT INJECTOR WITH ACCURATE MULTI-COLUMN STICKER SIZE ──
 export function triggerBrowserLabelPrint(
-  widthMm: number = 30,
-  heightMm: number = 19,
-  columns: number = 3,
-  gapHorizontalMm: number = 2,
-  gapVerticalMm: number = 2
+  optionsOrWidth: LabelPrintOptions | any = 33,
+  heightMmOrLegacy: any = 15,
+  columnsOrLegacy: number = 3,
+  gapHorizontalMmOrLegacy: number = 2,
+  gapVerticalMmOrLegacy: number = 2
 ): void {
+  let widthMm = 33;
+  let heightMm = 15;
+  let columns = 3;
+  let gapHorizontalMm = 2;
+  let gapVerticalMm = 2;
+
+  // If called as triggerBrowserLabelPrint(products, options)
+  if (Array.isArray(optionsOrWidth) && typeof heightMmOrLegacy === 'object' && heightMmOrLegacy !== null) {
+    const opts = heightMmOrLegacy as LabelPrintOptions;
+    widthMm = opts.widthMm || 33;
+    heightMm = opts.heightMm || 15;
+    columns = opts.columns || 3;
+    gapHorizontalMm = opts.gapHorizontalMm ?? (columns > 1 ? 2 : 0);
+    gapVerticalMm = opts.gapVerticalMm ?? 2;
+  } else if (typeof optionsOrWidth === 'object' && optionsOrWidth !== null && !Array.isArray(optionsOrWidth)) {
+    // If called as triggerBrowserLabelPrint(options)
+    const opts = optionsOrWidth as LabelPrintOptions;
+    widthMm = opts.widthMm || 33;
+    heightMm = opts.heightMm || 15;
+    columns = opts.columns || 3;
+    gapHorizontalMm = opts.gapHorizontalMm ?? (columns > 1 ? 2 : 0);
+    gapVerticalMm = opts.gapVerticalMm ?? 2;
+  } else if (typeof optionsOrWidth === 'number') {
+    widthMm = optionsOrWidth;
+    heightMm = typeof heightMmOrLegacy === 'number' ? heightMmOrLegacy : 15;
+    columns = columnsOrLegacy;
+    gapHorizontalMm = gapHorizontalMmOrLegacy;
+    gapVerticalMm = gapVerticalMmOrLegacy;
+  }
+
   const STYLE_ID = 'pos-dynamic-label-page-style';
   let styleEl = document.getElementById(STYLE_ID) as HTMLStyleElement;
   if (!styleEl) {
@@ -912,15 +1122,17 @@ export function triggerBrowserLabelPrint(
         overflow: hidden !important;
         display: flex !important;
         flex-direction: column !important;
-        justify-content: space-between !important;
+        justify-content: center !important;
         align-items: center !important;
         text-align: center !important;
-        padding: 0.3mm 0.6mm !important;
       }
     }
   `;
 
-  window.print();
+  // Brief timeout to ensure SVG barcodes and DOM are fully rendered before opening print dialog
+  setTimeout(() => {
+    window.print();
+  }, 100);
 }
 
 

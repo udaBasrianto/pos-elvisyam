@@ -205,6 +205,14 @@ export const BarcodeGraphic: React.FC<BarcodeGraphicProps> = ({
             }
           }
         });
+
+        // Ensure SVG preserves aspect ratio and centers cleanly according to textAlign
+        if (svgRef.current) {
+          svgRef.current.setAttribute(
+            'preserveAspectRatio',
+            textAlign === 'left' ? 'xMinYMid meet' : textAlign === 'right' ? 'xMaxYMid meet' : 'xMidYMid meet'
+          );
+        }
       } catch (err) {
         console.error("JsBarcode render error:", err);
       }
@@ -212,14 +220,17 @@ export const BarcodeGraphic: React.FC<BarcodeGraphicProps> = ({
   }, [cleanValue, width, height, displayValue, fontSize, fontFamily, margin, upperFormat, textAlign]);
 
   return (
-    <div className={`flex items-center ${textAlign === 'left' ? 'justify-start' : textAlign === 'right' ? 'justify-end' : 'justify-center'} w-full bg-white p-0 overflow-hidden`}>
+    <div className={`flex items-center ${textAlign === 'left' ? 'justify-start' : textAlign === 'right' ? 'justify-end' : 'justify-center'} w-full h-full bg-white p-0 overflow-hidden`}>
       <svg
         ref={svgRef}
         className={className}
         style={{
           maxWidth: '100%',
-          height: 'auto',
+          maxHeight: '100%',
+          width: 'auto',
+          height: '100%',
           display: 'block',
+          margin: textAlign === 'left' ? '0 auto 0 0' : textAlign === 'right' ? '0 0 0 auto' : '0 auto',
           backgroundColor: '#ffffff',
         }}
       />

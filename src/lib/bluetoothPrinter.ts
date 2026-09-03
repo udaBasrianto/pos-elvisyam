@@ -300,23 +300,8 @@ export async function detectPrinterPaper(device?: any): Promise<DetectedPaperInf
     return detected;
   }
 
-  // 2. Xprinter Desktop Thermal Barcode Printers (XP-420B, XP-365B, XP-DT, Panda, etc.)
-  const isXprinter = /xp-|xprinter|420|365|dt108|pos|panda|postek/i.test(name);
-  if (isXprinter) {
-    const detected: DetectedPaperInfo = {
-      widthMm: 30,
-      heightMm: 19,
-      columns: 3,
-      gapHorizontalMm: 2,
-      gapVerticalMm: 2,
-      presetId: '30x19-3col',
-      printerName: name,
-      source: 'model_profile',
-    };
-    window.dispatchEvent(new CustomEvent('pos_label_paper_detected', { detail: detected }));
-    return detected;
-  }
-
+  // 2. Printers without hardware RFID (Xprinter, TSC, Panda, etc.)
+  // Do NOT make up fake paper sizes. Real dimensions must be synced based on user's actual loaded roll.
   return null;
 }
 

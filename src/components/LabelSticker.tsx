@@ -82,8 +82,18 @@ export const LabelSticker: React.FC<LabelStickerProps> = ({
 
   const renderElement = (key: LabelElementKey) => {
     const pos = getElementPos(key);
+    const pad = options.elementPaddings?.[key] || { vertical: 0, horizontal: 0 };
     const isSelected = isInteractive && selectedElement === key;
-    const transformStyle = { transform: `translate(${pos.x}mm, ${pos.y}mm)` };
+    const transformStyle: React.CSSProperties = {
+      position: 'relative',
+      left: `${pos.x}mm`,
+      top: `${pos.y}mm`,
+      paddingTop: `${pad.vertical || 0}mm`,
+      paddingBottom: `${pad.vertical || 0}mm`,
+      paddingLeft: `${pad.horizontal || 0}mm`,
+      paddingRight: `${pad.horizontal || 0}mm`,
+      boxSizing: 'border-box',
+    };
 
     switch (key) {
       case 'storeName':
@@ -129,6 +139,7 @@ export const LabelSticker: React.FC<LabelStickerProps> = ({
 
       case 'productName':
         if (!options.showName) return null;
+        const allowTwoLines = options.productNameTwoLines !== false;
         return (
           <div
             key="elem-product"
@@ -150,14 +161,20 @@ export const LabelSticker: React.FC<LabelStickerProps> = ({
             }}
           >
             <div
-              className="uppercase w-full truncate whitespace-nowrap overflow-hidden font-bold"
+              className="uppercase w-full overflow-hidden font-bold"
               style={{
                 fontSize: `${options.productNameFontSize || (isCompact ? 8.5 : 9)}px`,
                 fontWeight: options.fontWeight === 'normal' ? 600 : options.fontWeight === 'bold' ? 700 : 800,
                 color: '#000000',
                 textAlign: align,
                 letterSpacing: '-0.2px',
-                lineHeight: '1.05',
+                lineHeight: '1.1',
+                display: '-webkit-box',
+                WebkitLineClamp: allowTwoLines ? 2 : 1,
+                WebkitBoxOrient: 'vertical',
+                wordBreak: 'break-word',
+                whiteSpace: 'normal',
+                overflow: 'hidden',
               }}
               title={product.name}
             >
@@ -173,9 +190,8 @@ export const LabelSticker: React.FC<LabelStickerProps> = ({
 
       case 'barcode':
         if (!options.showBarcode) return null;
-        const barcodePixelHeight = options.barcodeHeightMm
-          ? Math.max(8, Math.round(options.barcodeHeightMm * 1.5))
-          : (isCompact ? 18 : 28);
+        const bcHeightMm = options.barcodeHeightMm || (isCompact ? 8 : 12);
+        const barcodePixelHeight = Math.max(12, Math.round(bcHeightMm * 3.78));
 
         const barcodeAlignClass = align === 'left' ? 'items-start' : align === 'right' ? 'items-end' : 'items-center';
 
@@ -198,13 +214,23 @@ export const LabelSticker: React.FC<LabelStickerProps> = ({
               touchAction: isInteractive ? 'none' : undefined,
             }}
           >
-            <div style={{ width: `${options.barcodeAreaWidthPercent ?? 92}%` }}>
+            <div
+              style={{
+                width: `${options.barcodeAreaWidthPercent ?? 90}%`,
+                height: `${bcHeightMm}mm`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center',
+                overflow: 'hidden',
+                margin: '0 auto',
+              }}
+            >
               <BarcodeGraphic
                 value={barcode}
                 format={options.barcodeType || 'CODE128'}
                 fontFamily={options.fontFamily || 'monospace'}
                 textAlign={align}
-                className="w-full pointer-events-none"
+                className="max-w-full max-h-full pointer-events-none"
                 width={options.barcodeWidthRatio || 1.0}
                 height={barcodePixelHeight}
                 displayValue={false}
@@ -214,7 +240,7 @@ export const LabelSticker: React.FC<LabelStickerProps> = ({
             </div>
             {isSelected && (
               <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[8px] font-mono px-1 rounded shadow-xs pointer-events-none whitespace-nowrap z-10">
-                Barcode ({pos.x > 0 ? `+${pos.x}` : pos.x},{pos.y > 0 ? `+${pos.y}` : pos.y})
+                Barcode ({pos.x > 0 ? `+${pos.x}` : pos.x},{pos.y > 0 ? `+${pos.y}` : pos.y}) • {bcHeightMm}mm
               </div>
             )}
           </div>
@@ -348,9 +374,11 @@ export const LabelSticker: React.FC<LabelStickerProps> = ({
     }
   };
 
+  const sectionGapMm = options.sectionGapMm ?? 0.5;
+
   return (
     <div
-      className={`bg-white text-slate-900 flex flex-col justify-between items-center select-none ${
+      className={`bg-white text-slate-900 flex flex-col items-center select-none ${
         isForPrint ? '' : 'border border-slate-300 rounded-md shadow-xs'
       } ${className}`}
       style={{
@@ -358,6 +386,8 @@ export const LabelSticker: React.FC<LabelStickerProps> = ({
         height: `${heightMm}mm`,
         maxHeight: `${heightMm}mm`,
         padding: `${paddingV}mm ${paddingH}mm`,
+        rowGap: `${sectionGapMm}mm`,
+        justifyContent: 'center',
         boxSizing: 'border-box',
         backgroundColor: '#ffffff',
         color: '#000000',

@@ -315,10 +315,10 @@ function LayoutContent({ children }: LayoutProps) {
   };
 
   return (
-    <div className="min-h-screen flex w-full max-w-full overflow-x-hidden bg-background">
+    <div className="h-screen max-h-screen flex w-full max-w-full overflow-hidden bg-background">
       <AppSidebar />
 
-      <div className="flex-1 flex flex-col pt-0 transition-all w-full max-w-full overflow-x-hidden">
+      <div className="flex-1 flex flex-col pt-0 transition-all w-full max-w-full h-full overflow-hidden">
         <DemoSessionBanner />
         {/* Impersonation Banner */}
         {localStorage.getItem('original_admin_token') && (
@@ -592,7 +592,7 @@ function LayoutContent({ children }: LayoutProps) {
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 p-3 sm:p-4 md:p-6 bg-pos-bg overflow-x-hidden overflow-y-auto pb-24 md:pb-6 relative z-0 w-full max-w-full">
+        <main className="flex-1 p-3 sm:p-4 md:p-6 bg-pos-bg overflow-y-auto pb-24 md:pb-6 relative z-0 w-full max-w-full">
           <div className="absolute inset-0 -z-10 h-full w-full bg-white dark:bg-slate-950 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]"></div>
           {children}
         </main>
