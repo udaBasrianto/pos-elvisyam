@@ -153,6 +153,8 @@ export interface LabelProductData {
   price?: number;
   stock?: number;
   brand?: string;
+  category?: string;
+  subCategory?: string;
   storeName?: string;
   unit?: string;
   expiryDate?: string;
@@ -178,6 +180,9 @@ export interface LabelPrintOptions {
   showBarcodeText: boolean;
   showPrice: boolean;
   showSku: boolean;
+  showCategory?: boolean;
+  showSubCategory?: boolean;
+  showBrand?: boolean;
   customStoreName?: string;
   fontSize?: 'sm' | 'md' | 'lg';
   printerProtocol?: 'auto' | 'tspl' | 'escpos' | 'raster';
@@ -188,6 +193,9 @@ export interface LabelPrintOptions {
   productNameFontSize?: number; // in px (e.g. 9)
   barcodeTextFontSize?: number; // in px (e.g. 8)
   priceFontSize?: number; // in px (e.g. 12)
+  categoryFontSize?: number; // in px (e.g. 7.5)
+  subCategoryFontSize?: number; // in px (e.g. 7.5)
+  brandFontSize?: number; // in px (e.g. 7.5)
   fontWeight?: 'normal' | '500' | '600' | 'bold' | '800' | '900';
   textAlign?: 'left' | 'center' | 'right';
 
@@ -203,7 +211,7 @@ export interface LabelPrintOptions {
   elementOrder?: LabelElementKey[];
 }
 
-export type LabelElementKey = 'storeName' | 'productName' | 'barcode' | 'barcodeText' | 'price' | 'sku';
+export type LabelElementKey = 'storeName' | 'productName' | 'barcode' | 'barcodeText' | 'price' | 'sku' | 'category' | 'subCategory' | 'brand';
 
 export interface LabelElementPosition {
   x: number; // Horizontal offset in mm (-30 to +30)
@@ -248,6 +256,9 @@ export const DEFAULT_LABEL_OPTIONS: LabelPrintOptions = {
   showBarcodeText: true,
   showPrice: true,
   showSku: false,
+  showCategory: false,
+  showSubCategory: false,
+  showBrand: false,
   fontSize: 'md',
   printerProtocol: 'auto',
 
@@ -257,6 +268,9 @@ export const DEFAULT_LABEL_OPTIONS: LabelPrintOptions = {
   productNameFontSize: 9,
   barcodeTextFontSize: 8,
   priceFontSize: 12,
+  categoryFontSize: 7.5,
+  subCategoryFontSize: 7.5,
+  brandFontSize: 7.5,
   fontWeight: '800',
   textAlign: 'center',
 
@@ -273,6 +287,9 @@ export const DEFAULT_LABEL_OPTIONS: LabelPrintOptions = {
     barcodeText: { vertical: 0.2, horizontal: 0 },
     price: { vertical: 0.2, horizontal: 0 },
     sku: { vertical: 0.2, horizontal: 0 },
+    category: { vertical: 0.2, horizontal: 0 },
+    subCategory: { vertical: 0.2, horizontal: 0 },
+    brand: { vertical: 0.2, horizontal: 0 },
   },
   elementOrder: DEFAULT_LABEL_ELEMENT_ORDER,
 };
@@ -706,6 +723,27 @@ export function generateTsplLabel(
           const posY = Math.max(0, currentY + Math.floor(offSku.y * dotsPerMm));
           tspl += `TEXT ${posX},${posY},"1",0,1,1,${tsplAlign},"${escapeTspl(sku)}"\r\n`;
           currentY += (isCompact ? 9 : 11) + sectionGapDots + padVDots;
+        } else if (elemKey === 'category' && opts.showCategory && (product.category || '')) {
+          const offCat = opts.elementPositions?.category || { x: 0, y: 0 };
+          const catText = (product.category || '').toUpperCase();
+          const posX = Math.max(0, getBaseX(offCat.x) + padHDots);
+          const posY = Math.max(0, currentY + Math.floor(offCat.y * dotsPerMm));
+          tspl += `TEXT ${posX},${posY},"1",0,1,1,${tsplAlign},"${escapeTspl(catText)}"\r\n`;
+          currentY += (isCompact ? 8 : 10) + sectionGapDots + padVDots;
+        } else if (elemKey === 'subCategory' && opts.showSubCategory && (product.subCategory || (product as any).sub_category || '')) {
+          const offSub = opts.elementPositions?.subCategory || { x: 0, y: 0 };
+          const subText = ((product.subCategory || (product as any).sub_category) || '').toUpperCase();
+          const posX = Math.max(0, getBaseX(offSub.x) + padHDots);
+          const posY = Math.max(0, currentY + Math.floor(offSub.y * dotsPerMm));
+          tspl += `TEXT ${posX},${posY},"1",0,1,1,${tsplAlign},"${escapeTspl(subText)}"\r\n`;
+          currentY += (isCompact ? 8 : 10) + sectionGapDots + padVDots;
+        } else if (elemKey === 'brand' && opts.showBrand && (product.brand || '')) {
+          const offBrand = opts.elementPositions?.brand || { x: 0, y: 0 };
+          const brandText = (product.brand || '').toUpperCase();
+          const posX = Math.max(0, getBaseX(offBrand.x) + padHDots);
+          const posY = Math.max(0, currentY + Math.floor(offBrand.y * dotsPerMm));
+          tspl += `TEXT ${posX},${posY},"1",0,1,1,${tsplAlign},"${escapeTspl(brandText)}"\r\n`;
+          currentY += (isCompact ? 8 : 10) + sectionGapDots + padVDots;
         }
       }
     }
@@ -956,6 +994,24 @@ export async function generateRasterLabelBitmap(
         ctx.font = `bold ${barcodeTextFontPx}px ${fontFamilyCss}`;
         ctx.fillText(sku, getBaseRasterX(offSku.x + (elemPad.horizontal || 0)), y + barcodeTextFontPx * 0.8 + offSku.y * dpmm);
         y += barcodeTextFontPx + 2 + sectionGapDots + elemPadVDots;
+      } else if (elemKey === 'category' && opts.showCategory && (product.category || '')) {
+        const offCat = opts.elementPositions?.category || { x: 0, y: 0 };
+        const catFontPx = opts.categoryFontSize || (isCompact ? 6.5 : 7.5);
+        ctx.font = `600 ${catFontPx}px ${fontFamilyCss}`;
+        ctx.fillText((product.category || '').toUpperCase(), getBaseRasterX(offCat.x + (elemPad.horizontal || 0)), y + catFontPx * 0.8 + offCat.y * dpmm);
+        y += catFontPx + 2 + sectionGapDots + elemPadVDots;
+      } else if (elemKey === 'subCategory' && opts.showSubCategory && (product.subCategory || (product as any).sub_category || '')) {
+        const offSub = opts.elementPositions?.subCategory || { x: 0, y: 0 };
+        const subFontPx = opts.subCategoryFontSize || (isCompact ? 6.5 : 7.5);
+        ctx.font = `500 ${subFontPx}px ${fontFamilyCss}`;
+        ctx.fillText((product.subCategory || (product as any).sub_category || ''), getBaseRasterX(offSub.x + (elemPad.horizontal || 0)), y + subFontPx * 0.8 + offSub.y * dpmm);
+        y += subFontPx + 2 + sectionGapDots + elemPadVDots;
+      } else if (elemKey === 'brand' && opts.showBrand && (product.brand || '')) {
+        const offBrand = opts.elementPositions?.brand || { x: 0, y: 0 };
+        const brandFontPx = opts.brandFontSize || (isCompact ? 6.5 : 7.5);
+        ctx.font = `600 ${brandFontPx}px ${fontFamilyCss}`;
+        ctx.fillText((product.brand || '').toUpperCase(), getBaseRasterX(offBrand.x + (elemPad.horizontal || 0)), y + brandFontPx * 0.8 + offBrand.y * dpmm);
+        y += brandFontPx + 2 + sectionGapDots + elemPadVDots;
       }
     }
   }

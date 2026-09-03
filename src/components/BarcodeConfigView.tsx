@@ -43,6 +43,8 @@ import {
   MousePointerClick,
   Pin,
   PinOff,
+  FolderOpen,
+  Tag,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useHardware } from '@/contexts/HardwareContext';
@@ -93,6 +95,9 @@ export const ELEMENT_CONFIG: Record<
   barcodeText: { label: 'Nomor Barcode', icon: ScanBarcode, desc: 'Angka digit di bawah barcode' },
   price: { label: 'Harga Jual', icon: Zap, desc: 'Nominal harga jual produk' },
   sku: { label: 'Kode SKU', icon: Layers, desc: 'Kode identifikasi SKU stok' },
+  category: { label: 'Kategori', icon: FolderOpen, desc: 'Kategori induk produk' },
+  subCategory: { label: 'Sub-Kategori', icon: Layers, desc: 'Sub-kategori produk' },
+  brand: { label: 'Merek', icon: Tag, desc: 'Merek / Brand produk' },
 };
 
 export function BarcodeConfigView({
@@ -246,6 +251,9 @@ export function BarcodeConfigView({
     if (options.showBarcodeText) count++;
     if (options.showPrice) count++;
     if (options.showSku) count++;
+    if (options.showCategory) count++;
+    if (options.showSubCategory) count++;
+    if (options.showBrand) count++;
     return count;
   }, [
     options.showStoreName,
@@ -254,6 +262,9 @@ export function BarcodeConfigView({
     options.showBarcodeText,
     options.showPrice,
     options.showSku,
+    options.showCategory,
+    options.showSubCategory,
+    options.showBrand,
   ]);
 
   const customPositionsCount = useMemo(() => {
@@ -526,6 +537,12 @@ export function BarcodeConfigView({
           return !!options.showPrice;
         case 'sku':
           return !!options.showSku;
+        case 'category':
+          return !!options.showCategory;
+        case 'subCategory':
+          return !!options.showSubCategory;
+        case 'brand':
+          return !!options.showBrand;
         default:
           return true;
       }
@@ -850,7 +867,9 @@ export function BarcodeConfigView({
           price: prod.price,
           barcode: prod.barcode || prod.sku || '000000',
           sku: prod.sku || '',
-          category: prod.category,
+          category: prod.category || '',
+          subCategory: (prod as any).subCategory || (prod as any).sub_category || '',
+          brand: prod.brand || '',
           storeName: activeStoreDisplayName,
           copies: 1,
         },
@@ -902,7 +921,9 @@ export function BarcodeConfigView({
       price: 15000,
       barcode: '899123456789',
       sku: 'SKU-001',
-      category: 'Umum',
+      category: 'Herbal Alami',
+      subCategory: 'Kapsul Herbal',
+      brand: 'Ryo Store',
       storeName: activeStoreDisplayName,
       copies: 1,
     }),
@@ -925,7 +946,9 @@ export function BarcodeConfigView({
         price: p.price,
         barcode: p.barcode || p.sku || '000000',
         sku: p.sku || '',
-        category: p.category,
+        category: p.category || 'Herbal Alami',
+        subCategory: (p as any).subCategory || (p as any).sub_category || 'Kapsul Herbal',
+        brand: p.brand || 'Ryo Store',
         storeName: activeStoreDisplayName,
         copies: 1,
       };
@@ -1447,6 +1470,39 @@ export function BarcodeConfigView({
                   <span className="text-[10px] text-muted-foreground">Kode stok</span>
                 </div>
               </label>
+
+              <label className="flex items-center gap-2.5 p-2.5 rounded-xl border bg-background hover:bg-muted/30 cursor-pointer transition-colors">
+                <Checkbox
+                  checked={options.showCategory}
+                  onCheckedChange={(c) => setOptions((prev) => ({ ...prev, showCategory: !!c }))}
+                />
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-semibold text-foreground">Kategori</span>
+                  <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">{activePreviewProduct?.category || 'Kategori induk'}</span>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-2.5 p-2.5 rounded-xl border bg-background hover:bg-muted/30 cursor-pointer transition-colors">
+                <Checkbox
+                  checked={options.showSubCategory}
+                  onCheckedChange={(c) => setOptions((prev) => ({ ...prev, showSubCategory: !!c }))}
+                />
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-semibold text-foreground">Sub-Kategori</span>
+                  <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">{(activePreviewProduct as any)?.subCategory || 'Sub-kategori'}</span>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-2.5 p-2.5 rounded-xl border bg-background hover:bg-muted/30 cursor-pointer transition-colors">
+                <Checkbox
+                  checked={options.showBrand}
+                  onCheckedChange={(c) => setOptions((prev) => ({ ...prev, showBrand: !!c }))}
+                />
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-semibold text-foreground">Merek</span>
+                  <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">{activePreviewProduct?.brand || 'Brand produk'}</span>
+                </div>
+              </label>
             </div>
 
             {/* Input Nama Toko Kustom jika dicentang */}
@@ -1793,7 +1849,7 @@ export function BarcodeConfigView({
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {(DEFAULT_LABEL_ELEMENT_ORDER.concat(['sku']) as LabelElementKey[]).map((key) => {
+                {(['storeName', 'productName', 'barcode', 'barcodeText', 'price', 'sku', 'category', 'subCategory', 'brand'] as LabelElementKey[]).map((key) => {
                   const conf = ELEMENT_CONFIG[key];
                   if (!conf) return null;
                   const isSelected = selectedElement === key;

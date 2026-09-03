@@ -369,6 +369,130 @@ export const LabelSticker: React.FC<LabelStickerProps> = ({
           </div>
         );
 
+      case 'category':
+        if (!options.showCategory || !product.category) return null;
+        return (
+          <div
+            key="elem-category"
+            onPointerDown={isInteractive && onPointerDownElement ? (e) => onPointerDownElement(e, 'category') : undefined}
+            onClick={isInteractive && onSelectElement ? (e) => { e.stopPropagation(); onSelectElement('category'); } : undefined}
+            className={`w-full relative select-none transition-all ${
+              isInteractive
+                ? `cursor-grab active:cursor-grabbing rounded px-1 ${
+                    isSelected
+                      ? 'ring-2 ring-blue-500 bg-blue-50/80 shadow-xs'
+                      : 'hover:ring-1 hover:ring-blue-300 hover:bg-slate-50'
+                  }`
+                : ''
+            }`}
+            style={{
+              ...transformStyle,
+              touchAction: isInteractive ? 'none' : undefined,
+              textAlign: align,
+            }}
+          >
+            <span
+              className="text-slate-900 font-bold block truncate uppercase tracking-tight"
+              style={{
+                fontSize: `${options.categoryFontSize || (isCompact ? 6.5 : 7.5)}px`,
+                textAlign: align,
+                color: '#000000',
+                lineHeight: '1.0',
+              }}
+            >
+              {product.category}
+            </span>
+            {isSelected && (
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[8px] font-mono px-1 rounded shadow-xs pointer-events-none whitespace-nowrap z-10">
+                Kategori ({pos.x > 0 ? `+${pos.x}` : pos.x},{pos.y > 0 ? `+${pos.y}` : pos.y})
+              </div>
+            )}
+          </div>
+        );
+
+      case 'subCategory':
+        const subCatVal = (product as any).subCategory || (product as any).sub_category;
+        if (!options.showSubCategory || !subCatVal) return null;
+        return (
+          <div
+            key="elem-subcategory"
+            onPointerDown={isInteractive && onPointerDownElement ? (e) => onPointerDownElement(e, 'subCategory') : undefined}
+            onClick={isInteractive && onSelectElement ? (e) => { e.stopPropagation(); onSelectElement('subCategory'); } : undefined}
+            className={`w-full relative select-none transition-all ${
+              isInteractive
+                ? `cursor-grab active:cursor-grabbing rounded px-1 ${
+                    isSelected
+                      ? 'ring-2 ring-blue-500 bg-blue-50/80 shadow-xs'
+                      : 'hover:ring-1 hover:ring-blue-300 hover:bg-slate-50'
+                  }`
+                : ''
+            }`}
+            style={{
+              ...transformStyle,
+              touchAction: isInteractive ? 'none' : undefined,
+              textAlign: align,
+            }}
+          >
+            <span
+              className="text-slate-700 font-semibold block truncate"
+              style={{
+                fontSize: `${options.subCategoryFontSize || (isCompact ? 6.5 : 7.5)}px`,
+                textAlign: align,
+                color: '#222222',
+                lineHeight: '1.0',
+              }}
+            >
+              {subCatVal}
+            </span>
+            {isSelected && (
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[8px] font-mono px-1 rounded shadow-xs pointer-events-none whitespace-nowrap z-10">
+                Sub ({pos.x > 0 ? `+${pos.x}` : pos.x},{pos.y > 0 ? `+${pos.y}` : pos.y})
+              </div>
+            )}
+          </div>
+        );
+
+      case 'brand':
+        if (!options.showBrand || !product.brand) return null;
+        return (
+          <div
+            key="elem-brand"
+            onPointerDown={isInteractive && onPointerDownElement ? (e) => onPointerDownElement(e, 'brand') : undefined}
+            onClick={isInteractive && onSelectElement ? (e) => { e.stopPropagation(); onSelectElement('brand'); } : undefined}
+            className={`w-full relative select-none transition-all ${
+              isInteractive
+                ? `cursor-grab active:cursor-grabbing rounded px-1 ${
+                    isSelected
+                      ? 'ring-2 ring-blue-500 bg-blue-50/80 shadow-xs'
+                      : 'hover:ring-1 hover:ring-blue-300 hover:bg-slate-50'
+                  }`
+                : ''
+            }`}
+            style={{
+              ...transformStyle,
+              touchAction: isInteractive ? 'none' : undefined,
+              textAlign: align,
+            }}
+          >
+            <span
+              className="text-slate-800 font-bold block truncate uppercase tracking-tight"
+              style={{
+                fontSize: `${options.brandFontSize || (isCompact ? 6.5 : 7.5)}px`,
+                textAlign: align,
+                color: '#111111',
+                lineHeight: '1.0',
+              }}
+            >
+              {product.brand}
+            </span>
+            {isSelected && (
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[8px] font-mono px-1 rounded shadow-xs pointer-events-none whitespace-nowrap z-10">
+                Merek ({pos.x > 0 ? `+${pos.x}` : pos.x},{pos.y > 0 ? `+${pos.y}` : pos.y})
+              </div>
+            )}
+          </div>
+        );
+
       default:
         return null;
     }
