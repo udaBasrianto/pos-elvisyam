@@ -286,6 +286,8 @@ export function getProportionalLabelDimensions(
     widthMm?: number;
     heightMm?: number;
     barcodeHeightMm?: number;
+    barcodeAreaWidthPercent?: number;
+    barcodeWidthRatio?: number;
   }
 ): {
   barcodeHeightMm: number;
