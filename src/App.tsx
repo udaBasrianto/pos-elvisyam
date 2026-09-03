@@ -225,6 +225,36 @@ function AppRoutes() {
           }
         />
         <Route
+          path="/products"
+          element={
+            <RoleProtectedRoute roles={['admin', 'manager', 'kasir']}>
+              <Layout>
+                <Products />
+              </Layout>
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/barcode-settings"
+          element={
+            <RoleProtectedRoute roles={['admin', 'manager', 'kasir']}>
+              <Layout>
+                <BarcodePrint />
+              </Layout>
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/print-barcode"
+          element={
+            <RoleProtectedRoute roles={['admin', 'manager', 'kasir']}>
+              <Layout>
+                <BarcodePrint />
+              </Layout>
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
           path="/settings"
           element={
             <RoleProtectedRoute roles={['admin']}>

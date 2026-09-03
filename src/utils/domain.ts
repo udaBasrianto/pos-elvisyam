@@ -5,8 +5,6 @@
 const MAIN_SYSTEM_HOSTS = [
   'pos.elvisyam.com',
   'admin.elvisyam.com',
-  'tokoryo.web.id',
-  'www.tokoryo.web.id',
   'pos.tokoryo.web.id',
   'hana.elvisyam.com',
   'localhost',
