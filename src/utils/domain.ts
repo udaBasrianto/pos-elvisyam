@@ -5,6 +5,10 @@
 const MAIN_SYSTEM_HOSTS = [
   'pos.elvisyam.com',
   'admin.elvisyam.com',
+  'tokoryo.web.id',
+  'www.tokoryo.web.id',
+  'pos.tokoryo.web.id',
+  'hana.elvisyam.com',
   'localhost',
   '127.0.0.1',
   '::1',
@@ -39,7 +43,9 @@ export function getCustomDomainInfo(): CustomDomainInfo {
   const hostname = window.location.hostname.toLowerCase().trim();
 
   // 2. Jika hostname adalah domain sistem utama atau IP lokal
+  const envMainHost = (import.meta.env.VITE_MAIN_HOST || '').toLowerCase().trim();
   const isMainHost = MAIN_SYSTEM_HOSTS.includes(hostname) ||
+    (envMainHost && (hostname === envMainHost || hostname === `www.${envMainHost}`)) ||
     hostname.endsWith('.ngrok-free.app') ||
     hostname.endsWith('.ngrok.io') ||
     hostname.endsWith('.loca.lt') ||

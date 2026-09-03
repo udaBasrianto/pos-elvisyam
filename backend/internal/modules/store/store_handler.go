@@ -509,6 +509,11 @@ func (h *StoreHandler) GetStoreInfoBySlug(c *gin.Context) {
 		FaviconURL         *string `json:"favicon_url" db:"favicon_url"`
 	}
 
+	firstPart := cleanWithoutWww
+	if parts := strings.Split(cleanWithoutWww, "."); len(parts) > 1 {
+		firstPart = parts[0]
+	}
+
 	var info StoreInfo
 	err := database.DB.Get(&info, `
 		SELECT u.id as tenant_id, u.full_name, u.shop_slug, s.custom_domain,
@@ -526,8 +531,31 @@ func (h *StoreHandler) GetStoreInfoBySlug(c *gin.Context) {
 		   OR LOWER(s.custom_domain) = $2
 		   OR LOWER(s.custom_domain) = $3
 		   OR LOWER(s.custom_domain) = $4
+		   OR u.shop_slug = $5
+		   OR (s.custom_domain IS NOT NULL AND LOWER(s.custom_domain) LIKE '%' || $5 || '%')
 		LIMIT 1
-	`, rawParam, cleanWithoutWww, cleanWithWww, hostWithoutWww)
+	`, rawParam, cleanWithoutWww, cleanWithWww, hostWithoutWww, firstPart)
+
+	// Fallback jika belum terdaftar custom domain: ambil tenant/toko aktif pertama
+	if err != nil {
+		err = database.DB.Get(&info, `
+			SELECT u.id as tenant_id, u.full_name, u.shop_slug, s.custom_domain,
+			       s.business_name, COALESCE(s.online_store_enabled, true) as online_store_enabled,
+			       s.logo_url, s.business_logo, s.description,
+			       COALESCE(s.tagline, 'Sehat Alami, Hidup Harmoni') as tagline,
+			       COALESCE(s.theme_color, 'emerald') as theme_color,
+			       s.business_phone, s.business_email, s.business_address,
+			       s.instagram_url, s.facebook_url, s.whatsapp_number, s.footer_text,
+			       s.store_reviews, s.store_features, s.favicon_url
+			FROM users u
+			LEFT JOIN settings s ON u.id = s.user_id
+			WHERE u.role IN ('admin', 'manager') AND u.is_active = true
+			ORDER BY 
+				CASE WHEN s.custom_domain IS NOT NULL AND s.custom_domain != '' THEN 0 ELSE 1 END,
+				u.created_at ASC
+			LIMIT 1
+		`)
+	}
 
 	if err != nil {
 		utils.RespondError(c, http.StatusNotFound, "Toko tidak ditemukan")
