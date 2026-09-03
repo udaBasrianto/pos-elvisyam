@@ -182,6 +182,22 @@ export function BarcodeConfigView({
     }
   }, [state.settings?.barcode_settings]);
 
+  // 🏪 Nama Toko Aktif dari Pengaturan Akun / Profil (misal: Toko Ryo)
+  const defaultBusinessName = useMemo(() => {
+    return (
+      state.settings?.businessName ||
+      state.settings?.business_name ||
+      'Toko Ryo'
+    );
+  }, [state.settings?.businessName, state.settings?.business_name]);
+
+  const activeStoreDisplayName = useMemo(() => {
+    if (options.customStoreName && options.customStoreName.trim()) {
+      return options.customStoreName.trim();
+    }
+    return defaultBusinessName;
+  }, [options.customStoreName, defaultBusinessName]);
+
   // 🎯 Interactive Drag & Drop and Precision Position Control State
   const [selectedElement, setSelectedElement] = useState<LabelElementKey>('productName');
   const [zoomLevel, setZoomLevel] = useState<number>(1.5);
@@ -423,11 +439,12 @@ export function BarcodeConfigView({
     if (initialProducts && initialProducts.length > 0) {
       return initialProducts.map((p) => ({
         ...p,
+        storeName: p.storeName || activeStoreDisplayName,
         copies: p.copies && p.copies > 0 ? p.copies : 1,
       }));
     }
     if (initialProduct) {
-      return [{ ...initialProduct, copies: 1 }];
+      return [{ ...initialProduct, storeName: initialProduct.storeName || activeStoreDisplayName, copies: 1 }];
     }
     if (state.products && state.products.length > 0) {
       return state.products.slice(0, 3).map((p) => ({
@@ -437,7 +454,7 @@ export function BarcodeConfigView({
         barcode: p.barcode || p.sku || '000000',
         sku: p.sku || '',
         category: p.category,
-        storeName: state.storeSettings?.name || '',
+        storeName: activeStoreDisplayName,
         copies: 1,
       }));
     }
@@ -455,12 +472,12 @@ export function BarcodeConfigView({
           barcode: p.barcode || p.sku || '000000',
           sku: p.sku || '',
           category: p.category,
-          storeName: state.storeSettings?.name || '',
+          storeName: activeStoreDisplayName,
           copies: 1,
         }))
       );
     }
-  }, [state.products, initialProduct, initialProducts]);
+  }, [state.products, initialProduct, initialProducts, activeStoreDisplayName]);
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isPrinting, setIsPrinting] = useState<boolean>(false);
@@ -757,12 +774,21 @@ export function BarcodeConfigView({
       }
 
       let successCount = 0;
-      for (let i = 0; i < list.length; i++) {
-        const prod = list[i];
-        toast.loading(`🖨️ Mencetak [${i + 1}/${list.length}] "${prod.name}" (${prod.copies || 1} stiker)...`, { id: toastId });
-        const ok = await hardware.printLabel(prod, options);
+      const printOptions: LabelPrintOptions = {
+        ...options,
+        customStoreName: activeStoreDisplayName,
+      };
+      const preparedList = list.map((p) => ({
+        ...p,
+        storeName: p.storeName || activeStoreDisplayName,
+      }));
+
+      for (let i = 0; i < preparedList.length; i++) {
+        const prod = preparedList[i];
+        toast.loading(`🖨️ Mencetak [${i + 1}/${preparedList.length}] "${prod.name}" (${prod.copies || 1} stiker)...`, { id: toastId });
+        const ok = await hardware.printLabel(prod, printOptions);
         if (ok) successCount++;
-        if (list.length > 1 && i < list.length - 1) {
+        if (preparedList.length > 1 && i < preparedList.length - 1) {
           await new Promise((res) => setTimeout(res, 200));
         }
       }
@@ -771,12 +797,20 @@ export function BarcodeConfigView({
         toast.success(`✨ Berhasil mencetak ${successCount} produk ke printer Bluetooth!`, { id: toastId });
       } else {
         toast.warning('Printer Bluetooth belum merespons. Beralih ke dialog cetak browser (PDF)...', { id: toastId });
-        triggerBrowserLabelPrint(list, options);
+        triggerBrowserLabelPrint(preparedList, printOptions);
       }
     } catch (err: any) {
       console.error('Print Bluetooth error:', err);
       toast.error('Gagal cetak Bluetooth: ' + (err?.message || 'Beralih ke browser'), { id: toastId });
-      triggerBrowserLabelPrint(list, options);
+      const printOptions: LabelPrintOptions = {
+        ...options,
+        customStoreName: activeStoreDisplayName,
+      };
+      const preparedList = list.map((p) => ({
+        ...p,
+        storeName: p.storeName || activeStoreDisplayName,
+      }));
+      triggerBrowserLabelPrint(preparedList, printOptions);
     } finally {
       setIsPrinting(false);
     }
@@ -790,7 +824,15 @@ export function BarcodeConfigView({
       toast.error('Pilih minimal satu produk untuk dicetak!');
       return;
     }
-    triggerBrowserLabelPrint(list, options);
+    const printOptions: LabelPrintOptions = {
+      ...options,
+      customStoreName: activeStoreDisplayName,
+    };
+    const preparedList = list.map((p) => ({
+      ...p,
+      storeName: p.storeName || activeStoreDisplayName,
+    }));
+    triggerBrowserLabelPrint(preparedList, printOptions);
   };
 
   // Add product from search
@@ -809,7 +851,7 @@ export function BarcodeConfigView({
           barcode: prod.barcode || prod.sku || '000000',
           sku: prod.sku || '',
           category: prod.category,
-          storeName: state.storeSettings?.name || '',
+          storeName: activeStoreDisplayName,
           copies: 1,
         },
       ];
@@ -861,15 +903,20 @@ export function BarcodeConfigView({
       barcode: '899123456789',
       sku: 'SKU-001',
       category: 'Umum',
-      storeName: options.customStoreName || state.storeSettings?.name || 'TOKO KASIR',
+      storeName: activeStoreDisplayName,
       copies: 1,
     }),
-    [options.customStoreName, state.storeSettings]
+    [activeStoreDisplayName]
   );
 
   // Real preview product (takes first item from real queue, or first from store products, or sample)
   const activePreviewProduct: LabelProductData = useMemo(() => {
-    if (productsToPrint.length > 0) return productsToPrint[0];
+    if (productsToPrint.length > 0) {
+      return {
+        ...productsToPrint[0],
+        storeName: productsToPrint[0].storeName || activeStoreDisplayName,
+      };
+    }
     if (state.products && state.products.length > 0) {
       const p = state.products[0];
       return {
@@ -879,12 +926,12 @@ export function BarcodeConfigView({
         barcode: p.barcode || p.sku || '000000',
         sku: p.sku || '',
         category: p.category,
-        storeName: options.customStoreName || state.storeSettings?.name || '',
+        storeName: activeStoreDisplayName,
         copies: 1,
       };
     }
     return sampleFallbackProduct;
-  }, [productsToPrint, state.products, options.customStoreName, state.storeSettings, sampleFallbackProduct]);
+  }, [productsToPrint, state.products, activeStoreDisplayName, sampleFallbackProduct]);
 
   // Flatten products queue based on `copies` for print output
   const flattenedStickers = useMemo(() => {
@@ -1337,7 +1384,7 @@ export function BarcodeConfigView({
                 />
                 <div className="flex flex-col">
                   <span className="text-xs font-semibold text-foreground">Nama Toko</span>
-                  <span className="text-[10px] text-muted-foreground">Header brand</span>
+                  <span className="text-[10px] text-muted-foreground">{defaultBusinessName}</span>
                 </div>
               </label>
 
@@ -1396,6 +1443,46 @@ export function BarcodeConfigView({
                 </div>
               </label>
             </div>
+
+            {/* Input Nama Toko Kustom jika dicentang */}
+            {options.showStoreName && (
+              <div className="p-3.5 rounded-xl bg-purple-50/60 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/60 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <span>Nama Toko pada Stiker Label:</span>
+                  </Label>
+                  <span className="text-[10.5px] text-muted-foreground font-medium">
+                    Profil: <strong className="text-foreground">{defaultBusinessName}</strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={options.customStoreName !== undefined ? options.customStoreName : defaultBusinessName}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setOptions((prev) => ({ ...prev, customStoreName: val }));
+                    }}
+                    placeholder={`Contoh: ${defaultBusinessName}`}
+                    className="h-8 text-xs font-semibold bg-background rounded-xl"
+                  />
+                  {options.customStoreName && options.customStoreName !== defaultBusinessName && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setOptions((prev) => ({ ...prev, customStoreName: defaultBusinessName }))}
+                      className="h-8 text-xs px-2.5 rounded-xl shrink-0"
+                      title="Gunakan nama toko dari Pengaturan Akun"
+                    >
+                      Pakai Nama Toko
+                    </Button>
+                  )}
+                </div>
+                <p className="text-[10.5px] text-muted-foreground">
+                  Teks ini akan dicetak di bagian paling atas label stiker produk.
+                </p>
+              </div>
+            )}
 
             {/* Opsi Format Baris Nama & Perataan */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t">
@@ -2388,7 +2475,7 @@ export function BarcodeConfigView({
                     <LabelSticker
                       product={activePreviewProduct}
                       options={options}
-                      storeDisplayName={options.customStoreName || state.storeSettings?.name || ''}
+                      storeDisplayName={activeStoreDisplayName}
                       isInteractive={true}
                       selectedElement={selectedElement}
                       onSelectElement={setSelectedElement}
@@ -2436,7 +2523,7 @@ export function BarcodeConfigView({
                         <LabelSticker
                           product={activePreviewProduct}
                           options={options}
-                          storeDisplayName={options.customStoreName || state.storeSettings?.name || ''}
+                          storeDisplayName={activeStoreDisplayName}
                           isInteractive={false}
                         />
                         <span className="text-[9px] font-mono text-muted-foreground mt-1 opacity-70">
@@ -2570,7 +2657,7 @@ export function BarcodeConfigView({
                 <LabelSticker
                   product={activePreviewProduct}
                   options={options}
-                  storeDisplayName={options.customStoreName || state.storeSettings?.name || ''}
+                  storeDisplayName={activeStoreDisplayName}
                   isInteractive={true}
                   selectedElement={selectedElement}
                   onSelectElement={setSelectedElement}
@@ -2625,7 +2712,7 @@ export function BarcodeConfigView({
                     <LabelSticker
                       product={item}
                       options={options}
-                      storeDisplayName={options.customStoreName || state.storeSettings?.name || ''}
+                      storeDisplayName={activeStoreDisplayName}
                       isInteractive={false}
                       isForPrint={true}
                     />

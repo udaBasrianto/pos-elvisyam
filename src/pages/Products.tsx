@@ -406,16 +406,18 @@ const Products = () => {
       toast.loading(`Mencetak ${copies} stiker "${product.name}"...`, { id: toastId });
 
       const opts = loadLabelOptions();
+      const currentStoreName = opts.customStoreName || state.settings?.businessName || state.settings?.business_name || 'TOKO RYO';
       const labelProduct: LabelProductData = {
         name: product.name,
         barcode: product.barcode || product.sku || '',
         sku: product.sku || '',
         price: product.price,
-        brand: product.brand || state.settings?.businessName || 'TOKO',
+        brand: product.brand || '',
+        storeName: currentStoreName,
         category: product.category,
       };
 
-      const ok = await printHardwareLabel(labelProduct, { ...opts, copies }, 'bluetooth');
+      const ok = await printHardwareLabel(labelProduct, { ...opts, copies, customStoreName: currentStoreName }, 'bluetooth');
       if (ok) {
         toast.success(`🏷️ ${copies} stiker "${product.name}" berhasil dicetak!`, { id: toastId });
         setQuickPrintProduct(null);

@@ -71,8 +71,8 @@ export const LabelSticker: React.FC<LabelStickerProps> = ({
     options.customStoreName ||
     product.storeName ||
     product.brand ||
-    'TOKO KAMI'
-  ).toUpperCase();
+    'TOKO'
+  ).trim().toUpperCase();
 
   const barcode = (product.barcode || product.sku || '000000').trim();
 

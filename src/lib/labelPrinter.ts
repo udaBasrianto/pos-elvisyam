@@ -575,7 +575,7 @@ export function generateTsplLabel(
       const isCompact = h <= 20;
       const padV = opts.paddingVerticalMm ?? (isCompact ? 0.4 : 0.8);
       let currentY = Math.max(2, Math.floor(padV * dotsPerMm));
-      const store = (opts.customStoreName || product.storeName || product.brand || 'TOKO').toUpperCase();
+      const store = (opts.customStoreName || product.storeName || product.brand || 'TOKO').trim().toUpperCase();
       const name = (product.name || 'PRODUK').toUpperCase();
       const code = (product.barcode || product.sku || '000000').trim();
       const price = opts.showPrice && product.price !== undefined ? formatRupiah(product.price) : '';
@@ -850,7 +850,7 @@ export async function generateRasterLabelBitmap(
       return centerX + Math.floor(offX * dpmm);
     };
 
-    const store = (opts.customStoreName || product.storeName || product.brand || 'TOKO').toUpperCase();
+    const store = (opts.customStoreName || product.storeName || product.brand || 'TOKO').trim().toUpperCase();
     const name = (product.name || 'PRODUK').toUpperCase();
     const code = (product.barcode || product.sku || '000000').trim();
     const price = opts.showPrice && product.price !== undefined ? formatRupiah(product.price) : '';
@@ -875,7 +875,7 @@ export async function generateRasterLabelBitmap(
 
       if (elemKey === 'storeName' && opts.showStoreName && store) {
         ctx.font = `bold ${storeFontPx}px ${fontFamilyCss}`;
-        ctx.fillText(store.slice(0, 18), getBaseRasterX(offStore.x + (elemPad.horizontal || 0)), y + storeFontPx * 0.8 + offStore.y * dpmm);
+        ctx.fillText(store.slice(0, 28), getBaseRasterX(offStore.x + (elemPad.horizontal || 0)), y + storeFontPx * 0.8 + offStore.y * dpmm);
         y += storeFontPx + 2 + sectionGapDots + elemPadVDots;
       } else if (elemKey === 'productName' && opts.showName && name) {
         const availableW = singleLabelW - Math.floor(padH * 2 * dpmm);
