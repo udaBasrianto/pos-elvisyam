@@ -958,42 +958,47 @@ export function BarcodeConfigView({
 
   return (
     <div className="space-y-6">
-      {/* 🚀 1. STATUS PRINTER NYATA & DETEKSI OTOMATIS */}
-      <div className="bg-gradient-to-r from-purple-950 via-indigo-950 to-slate-900 rounded-2xl p-4 sm:p-5 text-white shadow-lg border border-purple-500/30">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <Badge className="bg-purple-500/30 text-purple-200 border-purple-400/40 px-2.5 py-0.5 text-xs font-semibold gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-purple-300" />
+      {/* 🚀 1. STATUS PRINTER & DETEKSI HARDWARE (TEMA BAWAAN APP) */}
+      <div className="bg-card text-card-foreground rounded-2xl p-5 sm:p-6 shadow-xs border border-border space-y-4 transition-all">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 px-2.5 py-0.5 text-xs font-semibold gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" />
                 <span>Auto-Detect &amp; Auto-Fix Hardware</span>
               </Badge>
-              <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 px-2.5 py-0.5 text-xs font-semibold gap-1">
-                <Check className="w-3 h-3 text-emerald-400" />
+              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 px-2.5 py-0.5 text-xs font-semibold gap-1">
+                <Check className="w-3 h-3" />
                 <span>{saveStatus === 'saving' ? 'Menyimpan...' : 'Tersimpan Otomatis'}</span>
               </Badge>
               {printerInfo.connected ? (
-                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 px-2 py-0.5 text-xs font-semibold gap-1">
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 px-2.5 py-0.5 text-xs font-semibold gap-1">
                   <CheckCircle2 className="w-3 h-3" />
                   <span>{printerInfo.type.toUpperCase()} Terhubung</span>
                 </Badge>
               ) : (
-                <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40 px-2 py-0.5 text-xs font-semibold gap-1">
+                <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 px-2.5 py-0.5 text-xs font-semibold gap-1">
                   <AlertCircle className="w-3 h-3" />
                   <span>Printer Belum Terhubung</span>
                 </Badge>
               )}
             </div>
 
-            <h2 className="text-lg sm:text-xl font-black tracking-tight flex items-center gap-2">
-              <Printer className="w-5 h-5 text-purple-400" />
-              <span>{printerInfo.name}</span>
-            </h2>
-
-            <p className="text-xs text-purple-200/80">
-              {printerInfo.connected
-                ? 'Printer terdeteksi aktif. Dimensi stiker, kolom, dan area print terkunci (FIX) otomatis.'
-                : 'Klik tombol di samping untuk memindai dan menghubungkan printer Bluetooth / USB Anda.'}
-            </p>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 text-primary">
+                <Printer className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-foreground tracking-tight flex items-center gap-2">
+                  <span>{printerInfo.name}</span>
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {printerInfo.connected
+                    ? 'Printer terdeteksi aktif. Dimensi stiker, kolom, dan area print terkunci (FIX) otomatis.'
+                    : 'Sambungkan printer Bluetooth atau USB untuk cetak stiker thermal langsung.'}
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* ACTION BUTTONS: SCAN REAL BLUETOOTH / USB / SERIAL */}
@@ -1003,7 +1008,7 @@ export function BarcodeConfigView({
                 type="button"
                 variant="outline"
                 onClick={handleDisconnect}
-                className="bg-red-500/20 hover:bg-red-500/30 text-red-200 border-red-400/40 font-semibold h-9 text-xs px-3 rounded-xl gap-1.5"
+                className="bg-destructive/10 hover:bg-destructive/20 text-destructive border-destructive/20 font-semibold h-9 text-xs px-3 rounded-xl gap-1.5"
               >
                 <Unplug className="w-3.5 h-3.5" />
                 <span>Putuskan</span>
@@ -1014,7 +1019,7 @@ export function BarcodeConfigView({
                   type="button"
                   onClick={handleConnectBluetooth}
                   disabled={isScanning}
-                  className="bg-purple-600 hover:bg-purple-500 text-white font-bold h-9 text-xs px-4 rounded-xl shadow-md gap-2 transition-all active:scale-95"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-9 text-xs px-4 rounded-xl shadow-xs gap-2 transition-all active:scale-95"
                 >
                   {isScanning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Bluetooth className="w-3.5 h-3.5" />}
                   <span>Pindai Bluetooth</span>
@@ -1025,7 +1030,7 @@ export function BarcodeConfigView({
                   variant="outline"
                   onClick={handleConnectUsb}
                   disabled={isScanning}
-                  className="bg-white/10 hover:bg-white/20 border-white/20 text-white font-semibold h-9 text-xs px-3 rounded-xl gap-1.5"
+                  className="h-9 text-xs px-3 rounded-xl border-border hover:bg-muted text-foreground font-medium gap-1.5"
                 >
                   <Usb className="w-3.5 h-3.5" />
                   <span>USB</span>
@@ -1036,7 +1041,7 @@ export function BarcodeConfigView({
                   variant="outline"
                   onClick={handleConnectSerial}
                   disabled={isScanning}
-                  className="bg-white/10 hover:bg-white/20 border-white/20 text-white font-semibold h-9 text-xs px-3 rounded-xl gap-1.5"
+                  className="h-9 text-xs px-3 rounded-xl border-border hover:bg-muted text-foreground font-medium gap-1.5"
                 >
                   <Radio className="w-3.5 h-3.5" />
                   <span>Port COM</span>
@@ -1048,7 +1053,7 @@ export function BarcodeConfigView({
               type="button"
               variant="outline"
               onClick={() => applyAutoSyncAndFix(customWidth, customHeight, customCols, options.presetId)}
-              className="bg-white/10 hover:bg-white/20 border-white/20 text-white font-semibold h-9 text-xs px-3 rounded-xl gap-1.5"
+              className="h-9 text-xs px-3 rounded-xl border-border hover:bg-muted text-foreground font-medium gap-1.5"
               title="Kunci ulang dimensi dan skala print agar simetris"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -1059,7 +1064,7 @@ export function BarcodeConfigView({
               type="button"
               onClick={handleSaveDefaults}
               disabled={isSavingDb}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-9 text-xs px-3.5 rounded-xl shadow-md gap-1.5 transition-all active:scale-95"
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold h-9 text-xs px-3.5 rounded-xl shadow-xs gap-1.5 transition-all active:scale-95"
               title="Simpan pengaturan ini permanen agar tidak perlu setting ulang saat membuka aplikasi"
             >
               {isSavingDb ? (
@@ -1073,29 +1078,29 @@ export function BarcodeConfigView({
         </div>
 
         {/* METRIK DIMENSI TERKUNCI (FIX) */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4 pt-3.5 border-t border-white/10 text-xs">
-          <div className="bg-white/5 rounded-xl p-2.5 border border-white/10 flex flex-col justify-center">
-            <span className="text-[10px] text-purple-200/70 uppercase font-semibold">Lebar Kolom (Fix):</span>
-            <span className="text-sm font-mono font-black text-white mt-0.5">
-              {syncMetrics.w} mm <span className="text-[11px] font-normal text-purple-200/60">× {syncMetrics.h} mm</span>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t text-xs">
+          <div className="bg-muted/40 dark:bg-muted/20 rounded-xl p-3 border border-border/80 flex flex-col justify-center">
+            <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider">Lebar Kolom (Fix):</span>
+            <span className="text-sm font-mono font-bold text-foreground mt-0.5">
+              {syncMetrics.w} mm <span className="text-[11px] font-normal text-muted-foreground">× {syncMetrics.h} mm</span>
             </span>
           </div>
-          <div className="bg-white/5 rounded-xl p-2.5 border border-white/10 flex flex-col justify-center">
-            <span className="text-[10px] text-purple-200/70 uppercase font-semibold">Total Lebar Roll (Fix):</span>
-            <span className="text-sm font-mono font-black text-purple-300 mt-0.5">
-              {syncMetrics.totalRollW} mm <span className="text-[11px] font-normal text-purple-200/60">({syncMetrics.cols} Kolom)</span>
+          <div className="bg-muted/40 dark:bg-muted/20 rounded-xl p-3 border border-border/80 flex flex-col justify-center">
+            <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider">Total Lebar Roll (Fix):</span>
+            <span className="text-sm font-mono font-bold text-primary mt-0.5">
+              {syncMetrics.totalRollW} mm <span className="text-[11px] font-normal text-muted-foreground">({syncMetrics.cols} Kolom)</span>
             </span>
           </div>
-          <div className="bg-white/5 rounded-xl p-2.5 border border-white/10 flex flex-col justify-center">
-            <span className="text-[10px] text-purple-200/70 uppercase font-semibold">Area Cetak Aman (Fix):</span>
-            <span className="text-sm font-mono font-black text-emerald-300 mt-0.5">
-              {syncMetrics.printableW} mm <span className="text-[11px] font-normal text-emerald-200/60">({syncMetrics.barcodeAreaPct}%)</span>
+          <div className="bg-muted/40 dark:bg-muted/20 rounded-xl p-3 border border-border/80 flex flex-col justify-center">
+            <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider">Area Cetak Aman (Fix):</span>
+            <span className="text-sm font-mono font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+              {syncMetrics.printableW} mm <span className="text-[11px] font-normal text-muted-foreground">({syncMetrics.barcodeAreaPct}%)</span>
             </span>
           </div>
-          <div className="bg-white/5 rounded-xl p-2.5 border border-white/10 flex flex-col justify-center">
-            <span className="text-[10px] text-purple-200/70 uppercase font-semibold">Tinggi Barcode (Fix):</span>
-            <span className="text-sm font-mono font-black text-white mt-0.5">
-              {syncMetrics.barcodeH} mm <span className="text-[11px] font-normal text-purple-200/60">(44% tinggi)</span>
+          <div className="bg-muted/40 dark:bg-muted/20 rounded-xl p-3 border border-border/80 flex flex-col justify-center">
+            <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider">Tinggi Barcode (Fix):</span>
+            <span className="text-sm font-mono font-bold text-foreground mt-0.5">
+              {syncMetrics.barcodeH} mm <span className="text-[11px] font-normal text-muted-foreground">(44% stiker)</span>
             </span>
           </div>
         </div>
@@ -1109,7 +1114,7 @@ export function BarcodeConfigView({
           <div className="flex items-center justify-between px-1 py-0.5 text-xs text-muted-foreground flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <span className="font-bold text-foreground flex items-center gap-1.5">
-                <ChevronsUpDown className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                <ChevronsUpDown className="w-3.5 h-3.5 text-primary" />
                 <span>Panel Pengaturan Stiker</span>
               </span>
               <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
@@ -1133,7 +1138,7 @@ export function BarcodeConfigView({
               <button
                 type="button"
                 onClick={expandAllSections}
-                className="text-[11px] text-purple-600 dark:text-purple-400 hover:underline font-semibold"
+                className="text-[11px] text-primary hover:underline font-semibold"
               >
                 Buka Semua
               </button>
@@ -1156,7 +1161,7 @@ export function BarcodeConfigView({
               className="w-full p-4 sm:p-5 flex items-center justify-between text-left hover:bg-muted/30 transition-colors"
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 flex items-center justify-center shrink-0 text-purple-600 dark:text-purple-400">
+                <div className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 text-primary">
                   <Layers className="w-4 h-4" />
                 </div>
                 <div>
@@ -1169,7 +1174,7 @@ export function BarcodeConfigView({
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0 ml-3">
-                <Badge variant="outline" className="text-[10px] font-mono px-2 py-0.5 bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300">
+                <Badge variant="outline" className="text-[10px] font-mono px-2 py-0.5 bg-primary/10 border-primary/20 text-primary">
                   {syncMetrics.w} × {syncMetrics.h} mm ({syncMetrics.cols} Kolom)
                 </Badge>
                 {openSections.paper ? (
@@ -1239,16 +1244,16 @@ export function BarcodeConfigView({
                     onClick={() => handleSelectPreset(preset.id)}
                     className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between ${
                       isSelected
-                        ? 'border-purple-600 bg-purple-50/70 dark:bg-purple-950/40 text-foreground ring-2 ring-purple-500/20 shadow-xs'
+                        ? 'border-primary bg-primary/10 text-foreground ring-2 ring-primary/20 shadow-xs'
                         : 'border-border bg-background hover:bg-muted/40 text-muted-foreground'
                     }`}
                   >
                     <div className="flex items-center justify-between w-full">
-                      <span className={`text-xs font-bold ${isSelected ? 'text-purple-700 dark:text-purple-300' : 'text-foreground'}`}>
+                      <span className={`text-xs font-bold ${isSelected ? 'text-primary' : 'text-foreground'}`}>
                         {preset.name}
                       </span>
                       {isSelected ? (
-                        <span className="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center shrink-0">
+                        <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
                           <Check className="w-3 h-3" />
                         </span>
                       ) : (
@@ -1274,7 +1279,7 @@ export function BarcodeConfigView({
                   variant="ghost"
                   size="sm"
                   onClick={() => applyAutoSyncAndFix(customWidth, customHeight, customCols)}
-                  className="h-6 text-xs text-purple-600 dark:text-purple-400 font-bold px-2 hover:bg-purple-50 dark:hover:bg-purple-950"
+                  className="h-6 text-xs text-primary font-bold px-2 hover:bg-primary/10"
                 >
                   ⚡ Hitung &amp; Kunci Otomatis
                 </Button>
@@ -1326,7 +1331,7 @@ export function BarcodeConfigView({
                         }}
                         className={`flex-1 h-full text-xs font-bold transition-all ${
                           customCols === col
-                            ? 'bg-purple-600 text-white shadow-xs'
+                            ? 'bg-primary text-primary-foreground shadow-xs'
                             : 'text-muted-foreground hover:bg-muted'
                         }`}
                       >
@@ -1349,7 +1354,7 @@ export function BarcodeConfigView({
               className="w-full p-4 sm:p-5 flex items-center justify-between text-left hover:bg-muted/30 transition-colors"
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 flex items-center justify-center shrink-0 text-purple-600 dark:text-purple-400">
+                <div className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 text-primary">
                   <ScanBarcode className="w-4 h-4" />
                 </div>
                 <div>
@@ -1446,7 +1451,7 @@ export function BarcodeConfigView({
 
             {/* Input Nama Toko Kustom jika dicentang */}
             {options.showStoreName && (
-              <div className="p-3.5 rounded-xl bg-purple-50/60 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/60 space-y-2">
+              <div className="p-3.5 rounded-xl bg-muted/50 dark:bg-muted/20 border border-border space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
                     <span>Nama Toko pada Stiker Label:</span>
@@ -1494,7 +1499,7 @@ export function BarcodeConfigView({
                     onClick={() => setOptions((prev) => ({ ...prev, productNameTwoLines: false }))}
                     className={`py-1.5 px-3 rounded-lg border text-xs font-semibold transition-all ${
                       !options.productNameTwoLines
-                        ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                        ? 'bg-primary text-primary-foreground border-primary shadow-xs'
                         : 'bg-background hover:bg-muted text-foreground border-border'
                     }`}
                   >
@@ -1505,7 +1510,7 @@ export function BarcodeConfigView({
                     onClick={() => setOptions((prev) => ({ ...prev, productNameTwoLines: true }))}
                     className={`py-1.5 px-3 rounded-lg border text-xs font-semibold transition-all ${
                       options.productNameTwoLines
-                        ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                        ? 'bg-primary text-primary-foreground border-primary shadow-xs'
                         : 'bg-background hover:bg-muted text-foreground border-border'
                     }`}
                   >
@@ -1522,7 +1527,7 @@ export function BarcodeConfigView({
                     onClick={() => setOptions((prev) => ({ ...prev, textAlign: 'center' }))}
                     className={`py-1.5 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
                       options.textAlign === 'center'
-                        ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                        ? 'bg-primary text-primary-foreground border-primary shadow-xs'
                         : 'bg-background hover:bg-muted text-foreground border-border'
                     }`}
                   >
@@ -1534,7 +1539,7 @@ export function BarcodeConfigView({
                     onClick={() => setOptions((prev) => ({ ...prev, textAlign: 'left' }))}
                     className={`py-1.5 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
                       options.textAlign === 'left'
-                        ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                        ? 'bg-primary text-primary-foreground border-primary shadow-xs'
                         : 'bg-background hover:bg-muted text-foreground border-border'
                     }`}
                   >
@@ -1547,13 +1552,13 @@ export function BarcodeConfigView({
 
             {/* 📏 PENGATURAN TINGGI & LEBAR GARIS BARCODE */}
             {options.showBarcode && (
-              <div className="p-3.5 bg-purple-50/60 dark:bg-purple-950/20 rounded-xl border border-purple-200 dark:border-purple-800/60 space-y-3.5">
+              <div className="p-3.5 bg-muted/40 dark:bg-muted/20 rounded-xl border border-border space-y-3.5">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                    <ScanBarcode className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                    <ScanBarcode className="w-4 h-4 text-primary" />
                     <span>Ukuran Garis Barcode (Tinggi & Lebar)</span>
                   </span>
-                  <Badge variant="outline" className="text-[10px] font-mono px-2 py-0.5 bg-background border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300">
+                  <Badge variant="outline" className="text-[10px] font-mono px-2 py-0.5 bg-background border-primary/20 text-primary">
                     Tinggi: {options.barcodeHeightMm || 10}mm | Lebar: {options.barcodeAreaWidthPercent || 90}%
                   </Badge>
                 </div>
@@ -1563,7 +1568,7 @@ export function BarcodeConfigView({
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
                       <Label className="text-muted-foreground font-semibold">Tinggi Garis Barcode:</Label>
-                      <span className="font-mono font-bold text-purple-600 dark:text-purple-400">
+                      <span className="font-mono font-bold text-primary">
                         {options.barcodeHeightMm || 10} mm
                       </span>
                     </div>
@@ -1578,7 +1583,7 @@ export function BarcodeConfigView({
                           const val = Number(e.target.value);
                           setOptions((prev) => ({ ...prev, barcodeHeightMm: val }));
                         }}
-                        className="w-full accent-purple-600 cursor-pointer h-1.5 bg-muted rounded-lg"
+                        className="w-full accent-primary cursor-pointer h-1.5 bg-muted rounded-lg"
                       />
                       <input
                         type="number"
@@ -1609,7 +1614,7 @@ export function BarcodeConfigView({
                           onClick={() => setOptions((prev) => ({ ...prev, barcodeHeightMm: p.val }))}
                           className={`flex-1 text-[10px] py-0.5 rounded font-mono transition-all ${
                             (options.barcodeHeightMm || 10) === p.val
-                              ? 'bg-purple-600 text-white font-bold shadow-2xs'
+                              ? 'bg-primary text-primary-foreground font-bold shadow-2xs'
                               : 'bg-background hover:bg-muted text-muted-foreground border'
                           }`}
                         >
@@ -1623,7 +1628,7 @@ export function BarcodeConfigView({
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
                       <Label className="text-muted-foreground font-semibold">Lebar Garis Barcode:</Label>
-                      <span className="font-mono font-bold text-purple-600 dark:text-purple-400">
+                      <span className="font-mono font-bold text-primary">
                         {options.barcodeAreaWidthPercent || 90} %
                       </span>
                     </div>
@@ -1638,7 +1643,7 @@ export function BarcodeConfigView({
                           const val = Number(e.target.value);
                           setOptions((prev) => ({ ...prev, barcodeAreaWidthPercent: val }));
                         }}
-                        className="w-full accent-purple-600 cursor-pointer h-1.5 bg-muted rounded-lg"
+                        className="w-full accent-primary cursor-pointer h-1.5 bg-muted rounded-lg"
                       />
                       <input
                         type="number"
@@ -1669,7 +1674,7 @@ export function BarcodeConfigView({
                           onClick={() => setOptions((prev) => ({ ...prev, barcodeAreaWidthPercent: p.val }))}
                           className={`flex-1 text-[10px] py-0.5 rounded font-mono transition-all ${
                             (options.barcodeAreaWidthPercent || 90) === p.val
-                              ? 'bg-purple-600 text-white font-bold shadow-2xs'
+                              ? 'bg-primary text-primary-foreground font-bold shadow-2xs'
                               : 'bg-background hover:bg-muted text-muted-foreground border'
                           }`}
                         >
@@ -1681,7 +1686,7 @@ export function BarcodeConfigView({
                 </div>
 
                 {/* Ketebalan Batang Barcode */}
-                <div className="pt-2 border-t border-purple-200/60 dark:border-purple-800/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="pt-2 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="space-y-0.5">
                     <Label className="text-xs font-semibold text-foreground">Ketebalan Garis (Rasio Batang):</Label>
                     <p className="text-[10.5px] text-muted-foreground">Kerapatan & tebal garis hitam agar mudah terbaca scanner</p>
@@ -1700,7 +1705,7 @@ export function BarcodeConfigView({
                         onClick={() => setOptions((prev) => ({ ...prev, barcodeWidthRatio: item.val }))}
                         className={`px-2 py-1 text-[10.5px] font-semibold rounded-md transition-all ${
                           (options.barcodeWidthRatio || 1.0) === item.val
-                            ? 'bg-purple-600 text-white shadow-2xs font-bold'
+                            ? 'bg-primary text-primary-foreground shadow-2xs font-bold'
                             : 'text-muted-foreground hover:text-foreground'
                         }`}
                       >
@@ -1723,7 +1728,7 @@ export function BarcodeConfigView({
               className="w-full p-4 sm:p-5 flex items-center justify-between text-left hover:bg-muted/30 transition-colors"
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 flex items-center justify-center shrink-0 text-purple-600 dark:text-purple-400">
+                <div className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 text-primary">
                   <Move className="w-4 h-4" />
                 </div>
                 <div>
@@ -1804,15 +1809,15 @@ export function BarcodeConfigView({
                       onClick={() => setSelectedElement(key)}
                       className={`p-2.5 rounded-xl border text-left flex items-center justify-between gap-2 transition-all ${
                         isSelected
-                          ? 'bg-purple-600 text-white border-purple-600 shadow-sm ring-2 ring-purple-500/20'
+                          ? 'bg-primary text-primary-foreground border-primary shadow-sm ring-2 ring-primary/20'
                           : 'bg-background hover:bg-muted/60 text-foreground border-border'
                       }`}
                     >
                       <div className="flex items-center gap-2 min-w-0">
-                        <IconComp className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-white' : 'text-purple-600 dark:text-purple-400'}`} />
+                        <IconComp className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-white' : 'text-primary'}`} />
                         <div className="truncate">
                           <p className="text-xs font-bold truncate leading-tight">{conf.label}</p>
-                          <p className={`text-[9.5px] truncate ${isSelected ? 'text-purple-100' : 'text-muted-foreground'}`}>
+                          <p className={`text-[9.5px] truncate ${isSelected ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
                             {!isEnabled
                               ? '(Nonaktif)'
                               : hasOffset
@@ -1822,7 +1827,7 @@ export function BarcodeConfigView({
                         </div>
                       </div>
                       {hasOffset && (
-                        <span className={`w-2 h-2 rounded-full shrink-0 ${isSelected ? 'bg-amber-300' : 'bg-purple-600'}`} />
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${isSelected ? 'bg-amber-300' : 'bg-primary'}`} />
                       )}
                     </button>
                   );
@@ -1835,7 +1840,7 @@ export function BarcodeConfigView({
               <div className="flex items-center justify-between border-b pb-2">
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs font-bold text-foreground">
-                    Kontrol Geser: <span className="text-purple-600 dark:text-purple-400 font-extrabold">{ELEMENT_CONFIG[selectedElement]?.label}</span>
+                    Kontrol Geser: <span className="text-primary font-extrabold">{ELEMENT_CONFIG[selectedElement]?.label}</span>
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
@@ -1847,7 +1852,7 @@ export function BarcodeConfigView({
                       onClick={() => setStepSize(step)}
                       className={`px-2 py-0.5 rounded text-[10.5px] font-mono font-bold transition-all ${
                         stepSize === step
-                          ? 'bg-purple-600 text-white shadow-2xs'
+                          ? 'bg-primary text-primary-foreground shadow-2xs'
                           : 'bg-background hover:bg-muted text-muted-foreground border'
                       }`}
                     >
@@ -1866,7 +1871,7 @@ export function BarcodeConfigView({
                     variant="outline"
                     size="sm"
                     onClick={() => handleNudge(selectedElement, 0, -stepSize)}
-                    className="h-8 w-24 text-xs font-bold gap-1 rounded-xl bg-background shadow-2xs hover:bg-purple-50 hover:text-purple-600 dark:hover:bg-purple-950"
+                    className="h-8 w-24 text-xs font-bold gap-1 rounded-xl bg-background shadow-2xs hover:bg-purple-50 hover:text-primary dark:hover:bg-purple-950"
                     title={`Geser ke Atas ${stepSize} mm`}
                   >
                     <ArrowUp className="w-3.5 h-3.5" />
@@ -1879,7 +1884,7 @@ export function BarcodeConfigView({
                       variant="outline"
                       size="sm"
                       onClick={() => handleNudge(selectedElement, -stepSize, 0)}
-                      className="h-8 w-20 text-xs font-bold gap-1 rounded-xl bg-background shadow-2xs hover:bg-purple-50 hover:text-purple-600 dark:hover:bg-purple-950"
+                      className="h-8 w-20 text-xs font-bold gap-1 rounded-xl bg-background shadow-2xs hover:bg-purple-50 hover:text-primary dark:hover:bg-purple-950"
                       title={`Geser ke Kiri ${stepSize} mm`}
                     >
                       <ArrowLeft className="w-3.5 h-3.5" />
@@ -1894,7 +1899,7 @@ export function BarcodeConfigView({
                       className="h-8 w-18 text-[11px] font-bold gap-1 rounded-xl shadow-2xs"
                       title="Ratakan Horisontal ke Tengah (X: 0)"
                     >
-                      <Target className="w-3 h-3 text-purple-600" />
+                      <Target className="w-3 h-3 text-primary" />
                       <span>Tengah</span>
                     </Button>
 
@@ -1903,7 +1908,7 @@ export function BarcodeConfigView({
                       variant="outline"
                       size="sm"
                       onClick={() => handleNudge(selectedElement, stepSize, 0)}
-                      className="h-8 w-20 text-xs font-bold gap-1 rounded-xl bg-background shadow-2xs hover:bg-purple-50 hover:text-purple-600 dark:hover:bg-purple-950"
+                      className="h-8 w-20 text-xs font-bold gap-1 rounded-xl bg-background shadow-2xs hover:bg-purple-50 hover:text-primary dark:hover:bg-purple-950"
                       title={`Geser ke Kanan ${stepSize} mm`}
                     >
                       <span>Kanan</span>
@@ -1916,7 +1921,7 @@ export function BarcodeConfigView({
                     variant="outline"
                     size="sm"
                     onClick={() => handleNudge(selectedElement, 0, stepSize)}
-                    className="h-8 w-24 text-xs font-bold gap-1 rounded-xl bg-background shadow-2xs hover:bg-purple-50 hover:text-purple-600 dark:hover:bg-purple-950"
+                    className="h-8 w-24 text-xs font-bold gap-1 rounded-xl bg-background shadow-2xs hover:bg-purple-50 hover:text-primary dark:hover:bg-purple-950"
                     title={`Geser ke Bawah ${stepSize} mm`}
                   >
                     <ArrowDown className="w-3.5 h-3.5" />
@@ -1930,7 +1935,7 @@ export function BarcodeConfigView({
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                        <SlidersHorizontal className="w-3 h-3 text-purple-600" />
+                        <SlidersHorizontal className="w-3 h-3 text-primary" />
                         <span>Geser Horisontal (X mm):</span>
                       </span>
                       <span className="text-xs font-mono font-bold text-foreground bg-background px-2 py-0.5 rounded border">
@@ -1973,7 +1978,7 @@ export function BarcodeConfigView({
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                        <SlidersHorizontal className="w-3 h-3 text-purple-600" />
+                        <SlidersHorizontal className="w-3 h-3 text-primary" />
                         <span>Geser Vertikal (Y mm):</span>
                       </span>
                       <span className="text-xs font-mono font-bold text-foreground bg-background px-2 py-0.5 rounded border">
@@ -2056,13 +2061,13 @@ export function BarcodeConfigView({
 
                 {/* JIKA ELEMEN BARCODE TERPILIH, TAMPILKAN KONTROL TINGGI & LEBAR LANGSUNG */}
                 {selectedElement === 'barcode' && (
-                  <div className="pt-3 border-t border-dashed space-y-3 bg-purple-50/70 dark:bg-purple-950/30 -mx-3.5 -mb-3.5 p-3.5 rounded-b-xl">
+                  <div className="pt-3 border-t border-dashed space-y-3 bg-muted/40 dark:bg-muted/20 -mx-3.5 -mb-3.5 p-3.5 rounded-b-xl">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                        <SlidersHorizontal className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                        <SlidersHorizontal className="w-3.5 h-3.5 text-primary" />
                         <span>Atur Ukuran Garis Barcode Terpilih</span>
                       </span>
-                      <span className="text-[10.5px] font-mono text-purple-600 dark:text-purple-400 font-bold">
+                      <span className="text-[10.5px] font-mono text-primary font-bold">
                         Tinggi: {options.barcodeHeightMm || 10}mm | Lebar: {options.barcodeAreaWidthPercent || 90}%
                       </span>
                     </div>
@@ -2084,7 +2089,7 @@ export function BarcodeConfigView({
                               const val = Number(e.target.value);
                               setOptions((prev) => ({ ...prev, barcodeHeightMm: val }));
                             }}
-                            className="w-full accent-purple-600 cursor-pointer h-1.5 bg-muted rounded-lg"
+                            className="w-full accent-primary cursor-pointer h-1.5 bg-muted rounded-lg"
                           />
                           <input
                             type="number"
@@ -2117,7 +2122,7 @@ export function BarcodeConfigView({
                               const val = Number(e.target.value);
                               setOptions((prev) => ({ ...prev, barcodeAreaWidthPercent: val }));
                             }}
-                            className="w-full accent-purple-600 cursor-pointer h-1.5 bg-muted rounded-lg"
+                            className="w-full accent-primary cursor-pointer h-1.5 bg-muted rounded-lg"
                           />
                           <input
                             type="number"
@@ -2143,7 +2148,7 @@ export function BarcodeConfigView({
             <div className="pt-2 border-t space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-semibold text-muted-foreground">Susunan Urutan Vertikal Elemen:</Label>
-                <span className="text-[10.5px] text-purple-600 dark:text-purple-400 font-medium">Klik chip untuk memilih elemen</span>
+                <span className="text-[10.5px] text-primary font-medium">Klik chip untuk memilih elemen</span>
               </div>
               <div className="flex flex-wrap gap-1.5 items-center">
                 {(options.elementOrder || DEFAULT_LABEL_ELEMENT_ORDER).map((key, index) => {
@@ -2158,7 +2163,7 @@ export function BarcodeConfigView({
                       onClick={() => setSelectedElement(key)}
                       className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs font-semibold transition-all ${
                         isSelected
-                          ? 'bg-purple-600 text-white border-purple-600 shadow-2xs'
+                          ? 'bg-primary text-primary-foreground border-primary shadow-2xs'
                           : 'bg-background hover:bg-muted text-foreground'
                       }`}
                     >
@@ -2186,7 +2191,7 @@ export function BarcodeConfigView({
               className="w-full p-4 sm:p-5 flex items-center justify-between text-left hover:bg-muted/30 transition-colors"
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 flex items-center justify-center shrink-0 text-purple-600 dark:text-purple-400">
+                <div className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 text-primary">
                   <Package className="w-4 h-4" />
                 </div>
                 <div>
@@ -2246,7 +2251,7 @@ export function BarcodeConfigView({
                           <p className="font-bold truncate text-foreground">{p.name}</p>
                           <p className="text-[10px] text-muted-foreground font-mono">{p.barcode || p.sku || '-'}</p>
                         </div>
-                        <span className="text-purple-600 font-bold shrink-0">{formatRupiah(p.price)}</span>
+                        <span className="text-primary font-bold shrink-0">{formatRupiah(p.price)}</span>
                       </button>
                     ))}
                   </div>
@@ -2273,7 +2278,7 @@ export function BarcodeConfigView({
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-bold text-foreground truncate">{prod.name}</p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold">
+                        <span className="text-[10px] text-primary font-bold">
                           {formatRupiah(prod.price || 0)}
                         </span>
                         <span className="text-[10px] text-muted-foreground font-mono">
@@ -2343,9 +2348,9 @@ export function BarcodeConfigView({
                     variant="outline"
                     onClick={handleConnectBluetooth}
                     disabled={isScanning}
-                    className="h-9 text-xs font-semibold text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/30 hover:bg-purple-100 gap-1.5 rounded-xl"
+                    className="h-9 text-xs font-semibold text-primary border-purple-300 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/30 hover:bg-purple-100 gap-1.5 rounded-xl"
                   >
-                    {isScanning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Bluetooth className="w-3.5 h-3.5 text-purple-600" />}
+                    {isScanning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Bluetooth className="w-3.5 h-3.5 text-primary" />}
                     <span>Sambung Bluetooth</span>
                   </Button>
                 )}
@@ -2366,7 +2371,7 @@ export function BarcodeConfigView({
                   type="button"
                   onClick={handlePrintBluetooth}
                   disabled={isPrinting || productsToPrint.length === 0}
-                  className="bg-purple-600 hover:bg-purple-500 text-white font-bold h-9 text-xs px-5 rounded-xl shadow-md gap-2 active:scale-95 transition-all"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-9 text-xs px-5 rounded-xl shadow-md gap-2 active:scale-95 transition-all"
                   title="Cetak langsung ke printer Bluetooth"
                 >
                   {isPrinting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bluetooth className="w-4 h-4" />}
@@ -2385,7 +2390,7 @@ export function BarcodeConfigView({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-3">
               <div>
                 <h3 className="text-sm font-bold text-foreground tracking-tight flex items-center gap-2">
-                  <ScanBarcode className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  <ScanBarcode className="w-4 h-4 text-primary" />
                   <span>Editor &amp; Pratinjau Interaktif</span>
                 </h3>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -2409,12 +2414,12 @@ export function BarcodeConfigView({
                   }}
                   className={`h-7 px-2.5 text-xs font-semibold rounded-lg gap-1.5 transition-all ${
                     isFloatingDock
-                      ? 'bg-purple-600 text-white shadow-2xs'
-                      : 'hover:bg-purple-50 hover:text-purple-600 dark:hover:bg-purple-950/50'
+                      ? 'bg-primary text-primary-foreground shadow-2xs'
+                      : 'hover:bg-primary/10 hover:text-primary'
                   }`}
                   title={isFloatingDock ? 'Pasang kembali ke kolom samping' : 'Jadikan kotak mengambang bebas di sudut layar (Floating PiP)'}
                 >
-                  {isFloatingDock ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />}
+                  {isFloatingDock ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5 text-primary" />}
                   <span>{isFloatingDock ? 'Lepas Mengambang' : 'Mode Mengambang'}</span>
                 </Button>
 
@@ -2431,14 +2436,14 @@ export function BarcodeConfigView({
                       onClick={() => setZoomLevel(z.val)}
                       className={`px-2 py-0.5 text-xs font-mono font-bold rounded-md transition-all ${
                         zoomLevel === z.val
-                          ? 'bg-purple-600 text-white shadow-2xs'
+                          ? 'bg-primary text-primary-foreground shadow-2xs'
                           : 'bg-muted hover:bg-muted/80 text-muted-foreground border'
                       }`}
                     >
                       {z.label}
                     </button>
                   ))}
-                  <Badge variant="outline" className="text-[10px] font-mono px-2 py-0.5 ml-1 bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300">
+                  <Badge variant="outline" className="text-[10px] font-mono px-2 py-0.5 ml-1 bg-primary/10 border-primary/20 text-primary">
                     {syncMetrics.w} × {syncMetrics.h} mm
                   </Badge>
                 </div>
@@ -2447,19 +2452,19 @@ export function BarcodeConfigView({
 
             {/* 🎯 KANVAS EDITOR INTERAKTIF LANGSUNG */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-[11px] text-purple-700 dark:text-purple-300 font-semibold px-1">
+              <div className="flex items-center justify-between text-[11px] text-primary font-semibold px-1">
                 <span className="flex items-center gap-1.5">
                   <MousePointerClick className="w-3.5 h-3.5" />
                   <span>Kanvas Editor (Bisa Digeser):</span>
                 </span>
-                <span className="font-mono text-[10px] bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800">
+                <span className="font-mono text-[10px] bg-primary/10 px-2 py-0.5 rounded border border-primary/20 text-primary">
                   Elemen Aktif: <strong>{ELEMENT_CONFIG[selectedElement]?.label}</strong>
                 </span>
               </div>
 
               {activePreviewProduct ? (
                 <div
-                  className="bg-slate-100/90 dark:bg-slate-900/80 border-2 border-dashed border-purple-300 dark:border-purple-800/80 rounded-2xl p-6 flex flex-col items-center justify-center min-h-[220px] overflow-hidden relative transition-all shadow-inner"
+                  className="bg-slate-100/90 dark:bg-slate-900/80 border-2 border-dashed border-border rounded-2xl p-6 flex flex-col items-center justify-center min-h-[220px] overflow-hidden relative transition-all shadow-inner"
                   onPointerMove={handlePointerMove}
                   onPointerUp={handlePointerUp}
                   onPointerCancel={handlePointerUp}
@@ -2485,7 +2490,7 @@ export function BarcodeConfigView({
 
                   <div className="mt-4 text-center">
                     <p className="text-[10.5px] text-muted-foreground flex items-center justify-center gap-1">
-                      <Move className="w-3 h-3 text-purple-600" />
+                      <Move className="w-3 h-3 text-primary" />
                       <span>Klik &amp; tahan elemen pada stiker untuk menggeser posisinya secara visual.</span>
                     </p>
                   </div>
@@ -2502,7 +2507,7 @@ export function BarcodeConfigView({
             <div className="pt-3 border-t space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                  <Layers className="w-3.5 h-3.5 text-primary" />
                   <span>Simulasi Kertas Roll ({syncMetrics.cols} Kolom Sejajar)</span>
                 </span>
                 <Badge variant="outline" className="text-[10px] font-mono px-2 py-0.5">
@@ -2544,7 +2549,7 @@ export function BarcodeConfigView({
             <div className="pt-3 border-t flex flex-col gap-2.5">
               <div className="flex items-center justify-between text-xs text-muted-foreground font-semibold px-0.5">
                 <span className="flex items-center gap-1.5 text-foreground">
-                  <Zap className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                  <Zap className="w-3.5 h-3.5 text-primary" />
                   <span>Aksi Cetak Cepat:</span>
                 </span>
                 {printerInfo.connected ? (
@@ -2557,7 +2562,7 @@ export function BarcodeConfigView({
                     type="button"
                     onClick={handleConnectBluetooth}
                     disabled={isScanning}
-                    className="text-[10.5px] text-purple-600 dark:text-purple-400 font-bold hover:underline flex items-center gap-1"
+                    className="text-[10.5px] text-primary font-bold hover:underline flex items-center gap-1"
                   >
                     <Bluetooth className="w-3 h-3" />
                     <span>Sambung Bluetooth</span>
@@ -2581,7 +2586,7 @@ export function BarcodeConfigView({
                   type="button"
                   onClick={handlePrintBluetooth}
                   disabled={isPrinting || productsToPrint.length === 0}
-                  className="bg-purple-600 hover:bg-purple-500 text-white font-bold h-9 text-xs rounded-xl shadow-md gap-1.5 active:scale-95 transition-all"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-9 text-xs rounded-xl shadow-md gap-1.5 active:scale-95 transition-all"
                   title="Kirim perintah cetak langsung ke printer Bluetooth"
                 >
                   {isPrinting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Bluetooth className="w-3.5 h-3.5" />}
@@ -2617,12 +2622,12 @@ export function BarcodeConfigView({
 
       {/* 📌 FLOATING DOCK (PIP WINDOW) KETIKA MODE MENGAMBANG AKTIF */}
       {isFloatingDock && (
-        <div className="fixed bottom-5 right-5 z-50 w-[360px] sm:w-[410px] max-h-[85vh] overflow-y-auto bg-card/95 backdrop-blur-xl border-2 border-purple-500 shadow-2xl rounded-2xl p-4 animate-in fade-in slide-in-from-bottom-5 duration-200 space-y-3">
+        <div className="fixed bottom-5 right-5 z-50 w-[360px] sm:w-[410px] max-h-[85vh] overflow-y-auto bg-card/95 backdrop-blur-xl border-2 border-primary shadow-2xl rounded-2xl p-4 animate-in fade-in slide-in-from-bottom-5 duration-200 space-y-3">
           <div className="flex items-center justify-between pb-2 border-b">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
               <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                <ScanBarcode className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                <ScanBarcode className="w-3.5 h-3.5 text-primary" />
                 <span>Pratinjau Mengambang (Floating PiP)</span>
               </h4>
             </div>
@@ -2642,7 +2647,7 @@ export function BarcodeConfigView({
           {/* Interactive Canvas in Floating Window */}
           {activePreviewProduct && (
             <div
-              className="bg-slate-100/90 dark:bg-slate-900/80 border-2 border-dashed border-purple-300 dark:border-purple-800/80 rounded-xl p-4 flex flex-col items-center justify-center relative shadow-inner"
+              className="bg-slate-100/90 dark:bg-slate-900/80 border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center relative shadow-inner"
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
               onPointerCancel={handlePointerUp}
@@ -2667,7 +2672,7 @@ export function BarcodeConfigView({
 
               <div className="mt-3 text-center">
                 <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-1">
-                  <Move className="w-3 h-3 text-purple-600" />
+                  <Move className="w-3 h-3 text-primary" />
                   <span>Bisa geser langsung elemen pada stiker</span>
                 </p>
               </div>
@@ -2691,7 +2696,7 @@ export function BarcodeConfigView({
               size="sm"
               onClick={handlePrintBluetooth}
               disabled={isPrinting || productsToPrint.length === 0}
-              className="bg-purple-600 hover:bg-purple-500 text-white font-bold h-8 text-xs rounded-xl gap-1 shadow-sm"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-8 text-xs rounded-xl gap-1 shadow-sm"
               title="Cetak langsung ke printer Bluetooth"
             >
               {isPrinting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Bluetooth className="w-3 h-3" />}

@@ -24,6 +24,7 @@ import {
   Loader2,
   Type,
   Eye,
+  EyeOff,
   Moon,
   Sun,
   Check,
@@ -162,7 +163,10 @@ const Settings = () => {
     }
   }, [user?.shop_slug]);
 
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPasswords, setShowPasswords] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   // Online Store Toggle Handler
@@ -651,17 +655,26 @@ const Settings = () => {
       toast.error("Password baru harus minimal 6 karakter");
       return;
     }
+    if (confirmPassword && newPassword !== confirmPassword) {
+      toast.error("Konfirmasi password baru tidak cocok!");
+      return;
+    }
 
     setIsChangingPassword(true);
     try {
       await api.post('/auth/change-password', {
+        current_password: currentPassword,
+        currentPassword: currentPassword,
         newPassword,
         new_password: newPassword,
         password: newPassword,
       });
-      toast.success("Password berhasil diubah");
+      toast.success("Password akun berhasil diperbarui!");
+      setCurrentPassword("");
       setNewPassword("");
+      setConfirmPassword("");
     } catch (error: any) {
+      console.error("Gagal ganti password:", error);
       toast.error(error.response?.data?.error || "Gagal mengubah password");
     } finally {
       setIsChangingPassword(false);
@@ -2065,29 +2078,89 @@ const Settings = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <ColoredCard icon={Lock} iconColor="purple" title="Keamanan Akun & Password">
               <div className="space-y-4">
-                <div className="p-3 bg-muted/60 rounded-xl border space-y-3">
-                  <p className="text-xs font-semibold text-foreground">Ganti Password Akun Login</p>
-                  <div className="space-y-2">
-                    <Input
-                      type="password"
-                      placeholder="Masukkan password baru (minimal 6 karakter)"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="text-sm"
-                    />
+                <div className="p-4 bg-muted/50 dark:bg-muted/20 rounded-xl border space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-foreground">Ganti Password Akun Login</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Perbarui password akun Anda untuk menjaga keamanan sistem POS.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowPasswords(!showPasswords)}
+                      className="h-7 text-xs px-2 gap-1 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPasswords ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      <span>{showPasswords ? "Sembunyikan" : "Lihat"}</span>
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2.5 pt-1">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <Label className="text-[11px] font-semibold text-muted-foreground">
+                          Password Saat Ini / Lama:
+                        </Label>
+                        <span className="text-[10px] text-muted-foreground/80 font-normal">
+                          (Opsional untuk Admin)
+                        </span>
+                      </div>
+                      <Input
+                        type={showPasswords ? "text" : "password"}
+                        placeholder="Masukkan password saat ini (jika ada)"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        className="text-xs h-9 bg-background"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-semibold text-muted-foreground">
+                        Password Baru:
+                      </Label>
+                      <Input
+                        type={showPasswords ? "text" : "password"}
+                        placeholder="Minimal 6 karakter"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="text-xs h-9 bg-background"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-semibold text-muted-foreground">
+                        Konfirmasi Password Baru:
+                      </Label>
+                      <Input
+                        type={showPasswords ? "text" : "password"}
+                        placeholder="Ketik ulang password baru"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="text-xs h-9 bg-background"
+                      />
+                      {confirmPassword && newPassword !== confirmPassword && (
+                        <p className="text-[10.5px] text-destructive font-medium">
+                          Konfirmasi password belum cocok
+                        </p>
+                      )}
+                    </div>
+
                     <Button
                       size="sm"
-                      className="w-full"
+                      className="w-full mt-2 font-bold text-xs h-9"
                       onClick={handleChangePassword}
-                      disabled={isChangingPassword || !newPassword}
+                      disabled={isChangingPassword || !newPassword || newPassword.length < 6 || (confirmPassword ? newPassword !== confirmPassword : false)}
                     >
                       {isChangingPassword ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Memperbarui...
+                          Menyimpan Password...
                         </>
                       ) : (
-                        "Update Password"
+                        "Simpan Password Baru"
                       )}
                     </Button>
                   </div>

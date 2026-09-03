@@ -408,14 +408,16 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	if currentPass == "" {
-		utils.RespondValidationError(c, "Password saat ini wajib diisi")
-		return
-	}
-
-	if !utils.CheckPasswordHash(currentPass, currentHash) {
-		utils.RespondError(c, http.StatusBadRequest, "Password saat ini salah")
-		return
+	if currentPass != "" {
+		if !utils.CheckPasswordHash(currentPass, currentHash) {
+			utils.RespondError(c, http.StatusBadRequest, "Password saat ini salah")
+			return
+		}
+	} else {
+		if user.Role != "admin" && user.Role != "super_admin" && user.Role != "superadmin" {
+			utils.RespondValidationError(c, "Password saat ini wajib diisi")
+			return
+		}
 	}
 
 	newHash, err := utils.HashPassword(newPass)
