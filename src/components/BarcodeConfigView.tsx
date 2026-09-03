@@ -47,6 +47,7 @@ import {
 import { toast } from 'sonner';
 import { useHardware } from '@/contexts/HardwareContext';
 import { useApp } from '@/contexts/AppContext';
+import { api } from '@/lib/api';
 import {
   LABEL_PRESETS,
   DEFAULT_LABEL_OPTIONS,
@@ -105,7 +106,15 @@ export function BarcodeConfigView({
 
   // 1. Label Printing Configuration State (Auto-Fixed with user-saved defaults preserved)
   const [options, setOptions] = useState<LabelPrintOptions>(() => {
-    const saved = loadLabelOptions();
+    const savedLocal = loadLabelOptions();
+    let savedBackend: Partial<LabelPrintOptions> | null = null;
+    try {
+      if (state.settings?.barcode_settings) {
+        savedBackend = JSON.parse(state.settings.barcode_settings);
+      }
+    } catch (e) {}
+
+    const saved = { ...savedBackend, ...savedLocal };
     const defaults = autoFixLabelDimensions(saved?.presetId || '33x15-3col');
     return {
       ...defaults,
@@ -127,10 +136,51 @@ export function BarcodeConfigView({
     };
   });
 
+  // Save status & auto-save state
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
+  const [isSavingDb, setIsSavingDb] = useState<boolean>(false);
+  const isInitialMount = useRef(true);
+
   // Custom dimensions state
   const [customWidth, setCustomWidth] = useState<number>(options.widthMm || 33);
   const [customHeight, setCustomHeight] = useState<number>(options.heightMm || 15);
   const [customCols, setCustomCols] = useState<number>(options.columns || 3);
+
+  // 💾 Real-time Auto-Save to LocalStorage on any options change (debounced 400ms)
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    setSaveStatus('saving');
+    const timer = setTimeout(() => {
+      saveLabelOptions(options);
+      setSaveStatus('saved');
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [options]);
+
+  // ☁️ Sync from backend if backend settings arrive after initial mount
+  useEffect(() => {
+    if (state.settings?.barcode_settings) {
+      try {
+        const backendOpts = JSON.parse(state.settings.barcode_settings);
+        const localSavedRaw = localStorage.getItem('pos_label_options');
+        if (!localSavedRaw && backendOpts && typeof backendOpts === 'object') {
+          setOptions((prev) => {
+            const next = { ...prev, ...backendOpts };
+            saveLabelOptions(next);
+            return next;
+          });
+          if (backendOpts.widthMm) setCustomWidth(backendOpts.widthMm);
+          if (backendOpts.heightMm) setCustomHeight(backendOpts.heightMm);
+          if (backendOpts.columns) setCustomCols(backendOpts.columns);
+        }
+      } catch (e) {
+        console.warn('Gagal membaca barcode_settings dari database:', e);
+      }
+    }
+  }, [state.settings?.barcode_settings]);
 
   // 🎯 Interactive Drag & Drop and Precision Position Control State
   const [selectedElement, setSelectedElement] = useState<LabelElementKey>('productName');
@@ -627,10 +677,53 @@ export function BarcodeConfigView({
     }
   };
 
-  // 💾 Save as Default
-  const handleSaveDefaults = () => {
-    saveLabelOptions(options);
-    toast.success('Pengaturan cetak barcode berhasil disimpan sebagai default toko!');
+  // 💾 Save as Default (LocalStorage + Cloud Backend Sync)
+  const handleSaveDefaults = async () => {
+    setIsSavingDb(true);
+    setSaveStatus('saving');
+    try {
+      // 1. Simpan ke LocalStorage langsung (instant)
+      saveLabelOptions(options);
+
+      // 2. Simpan ke Database Server (Cloud Sync) jika terhubung ke akun
+      if (state.settings) {
+        await api.put('/settings', {
+          ...state.settings,
+          barcode_settings: JSON.stringify(options),
+        });
+      }
+
+      setSaveStatus('saved');
+      toast.success('Pengaturan barcode berhasil disimpan!', {
+        description: 'Ukuran kertas stiker, layout, posisi, dan format cetak akan otomatis aktif setiap kali aplikasi dibuka.',
+      });
+    } catch (err: any) {
+      console.warn('Gagal menyimpan ke server, tersimpan di lokal:', err);
+      saveLabelOptions(options);
+      setSaveStatus('saved');
+      toast.success('Pengaturan barcode tersimpan di browser lokal!');
+    } finally {
+      setIsSavingDb(false);
+    }
+  };
+
+  // 🔄 Reset ke Standar Pabrik (33x15 mm, 3 Kolom)
+  const handleResetToDefaults = () => {
+    if (window.confirm('Kembalikan pengaturan stiker label barcode ke standar pabrik (33x15 mm, 3 kolom)?')) {
+      const standard = autoFixLabelDimensions('33x15-3col');
+      setOptions(standard);
+      setCustomWidth(standard.widthMm);
+      setCustomHeight(standard.heightMm);
+      setCustomCols(standard.columns);
+      saveLabelOptions(standard);
+      if (state.settings) {
+        api.put('/settings', {
+          ...state.settings,
+          barcode_settings: JSON.stringify(standard),
+        }).catch(() => {});
+      }
+      toast.info('Pengaturan stiker dikembalikan ke standar pabrik (33x15 mm)');
+    }
   };
 
   // ⚡ Handle Direct Bluetooth / Hardware Thermal Print
@@ -827,6 +920,10 @@ export function BarcodeConfigView({
                 <Sparkles className="w-3.5 h-3.5 text-purple-300" />
                 <span>Auto-Detect &amp; Auto-Fix Hardware</span>
               </Badge>
+              <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 px-2.5 py-0.5 text-xs font-semibold gap-1">
+                <Check className="w-3 h-3 text-emerald-400" />
+                <span>{saveStatus === 'saving' ? 'Menyimpan...' : 'Tersimpan Otomatis'}</span>
+              </Badge>
               {printerInfo.connected ? (
                 <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 px-2 py-0.5 text-xs font-semibold gap-1">
                   <CheckCircle2 className="w-3 h-3" />
@@ -910,6 +1007,21 @@ export function BarcodeConfigView({
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Fix Ulang</span>
             </Button>
+
+            <Button
+              type="button"
+              onClick={handleSaveDefaults}
+              disabled={isSavingDb}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-9 text-xs px-3.5 rounded-xl shadow-md gap-1.5 transition-all active:scale-95"
+              title="Simpan pengaturan ini permanen agar tidak perlu setting ulang saat membuka aplikasi"
+            >
+              {isSavingDb ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Save className="w-3.5 h-3.5" />
+              )}
+              <span>Simpan Pengaturan</span>
+            </Button>
           </div>
         </div>
 
@@ -947,12 +1059,30 @@ export function BarcodeConfigView({
         {/* KOLOM KIRI: FORMAT ROLL & ELEMEN (7 COLS) */}
         <div className="lg:col-span-7 space-y-4">
           {/* Quick Accordion Controls Bar */}
-          <div className="flex items-center justify-between px-1 py-0.5 text-xs text-muted-foreground">
-            <span className="font-bold text-foreground flex items-center gap-1.5">
-              <ChevronsUpDown className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-              <span>Panel Pengaturan Stiker</span>
-            </span>
+          <div className="flex items-center justify-between px-1 py-0.5 text-xs text-muted-foreground flex-wrap gap-2">
             <div className="flex items-center gap-2">
+              <span className="font-bold text-foreground flex items-center gap-1.5">
+                <ChevronsUpDown className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                <span>Panel Pengaturan Stiker</span>
+              </span>
+              <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Auto-Save Aktif
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={handleSaveDefaults}
+                disabled={isSavingDb}
+                className="h-7 text-xs font-semibold gap-1.5 rounded-lg border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100"
+              >
+                <Save className="w-3 h-3" />
+                <span>Simpan Default</span>
+              </Button>
+              <span>•</span>
               <button
                 type="button"
                 onClick={expandAllSections}
@@ -2374,14 +2504,25 @@ export function BarcodeConfigView({
 
               <Button
                 type="button"
-                variant="ghost"
-                size="sm"
                 onClick={handleSaveDefaults}
-                className="h-8 text-xs text-muted-foreground hover:text-foreground gap-1.5 w-full rounded-xl"
+                disabled={isSavingDb}
+                className="h-9 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white gap-2 w-full rounded-xl shadow-xs transition-all active:scale-95"
               >
-                <Save className="w-3.5 h-3.5" />
+                {isSavingDb ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
                 <span>Simpan Pengaturan Default</span>
               </Button>
+
+              <button
+                type="button"
+                onClick={handleResetToDefaults}
+                className="text-[11px] text-muted-foreground hover:text-red-500 underline text-center w-full transition-colors pt-1 block"
+              >
+                Kembalikan ke Standar Pabrik (33x15 mm)
+              </button>
             </div>
           </div>
         </div>

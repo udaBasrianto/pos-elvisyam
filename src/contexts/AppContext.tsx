@@ -149,6 +149,8 @@ export interface Settings {
   business_logo?: string;
   shop_slug?: string;
   shopSlug?: string;
+  barcode_settings?: string;
+  barcodeSettings?: string;
 }
 
 // State interface
@@ -381,6 +383,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         description: settingsData.description || '',
         custom_domain: settingsData.custom_domain || '',
         customDomain: settingsData.custom_domain || '',
+        barcode_settings: settingsData.barcode_settings || '',
+        barcodeSettings: settingsData.barcode_settings || '',
       };
 
       if (settings.theme_color) {
@@ -524,7 +528,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         logo_url: settings.logoUrl || settings.businessLogo || '',
         favicon_url: settings.faviconUrl || settings.favicon_url || '',
         description: settings.description || '',
-        custom_domain: settings.custom_domain || settings.customDomain || ''
+        custom_domain: settings.custom_domain || settings.customDomain || '',
+        barcode_settings: settings.barcode_settings || settings.barcodeSettings || ''
       });
       if (settings.theme_color || settings.themeColor) {
         localStorage.setItem('pos-theme-color', settings.theme_color || settings.themeColor || 'emerald');

@@ -154,6 +154,7 @@ type SettingsRow struct {
 	StoreFeatures         *string  `json:"store_features" db:"store_features"`
 	CustomDomain          *string  `json:"custom_domain" db:"custom_domain"`
 	FaviconURL            *string  `json:"favicon_url" db:"favicon_url"`
+	BarcodeSettings       *string  `json:"barcode_settings" db:"barcode_settings"`
 }
 
 func (h *AdminHandler) GetSettings(c *gin.Context) {
@@ -188,7 +189,7 @@ func (h *AdminHandler) GetSettings(c *gin.Context) {
 		       COALESCE(theme_color, 'emerald') as theme_color,
 		       COALESCE(tagline, 'Sehat Alami, Hidup Harmoni') as tagline,
 		       instagram_url, facebook_url, whatsapp_number, footer_text, store_reviews, store_features,
-		       auth_background, custom_domain, favicon_url
+		       auth_background, custom_domain, favicon_url, barcode_settings
 		FROM settings
 		WHERE user_id = $1
 	`, tenantID)
@@ -212,6 +213,7 @@ func (h *AdminHandler) GetSettings(c *gin.Context) {
 			"laundry_perfume_options": "Akasia,Downy Red,Sakura,Ocean Fresh,Lavender,Snappy,Molto Blue",
 			"laundry_rack_locations": "Rak A-01,Rak A-02,Rak A-03,Rak B-01,Rak B-02,Rak B-03,Gantungan 01,Gantungan 02",
 			"laundry_prefix":        "LND",
+			"barcode_settings":      "",
 		})
 		return
 	}
@@ -265,6 +267,7 @@ func (h *AdminHandler) UpdateSettings(c *gin.Context) {
 		StoreFeatures         *string  `json:"store_features"`
 		CustomDomain          *string  `json:"custom_domain"`
 		FaviconURL            *string  `json:"favicon_url"`
+		BarcodeSettings       *string  `json:"barcode_settings"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -314,7 +317,7 @@ func (h *AdminHandler) UpdateSettings(c *gin.Context) {
 			min_spend_for_member, point_rate, point_value,
 			gold_threshold, platinum_threshold, auth_background, theme_color, tagline,
 			instagram_url, facebook_url, whatsapp_number, footer_text, store_reviews, store_features,
-			custom_domain, favicon_url
+			custom_domain, favicon_url, barcode_settings
 		) VALUES (
 			$1, $2, $3, $4, $5, $6,
 			$7, $8, $9, COALESCE($10, 0), COALESCE($11, 0), $12,
@@ -324,7 +327,7 @@ func (h *AdminHandler) UpdateSettings(c *gin.Context) {
 			COALESCE($30, 100000), COALESCE($31, 10000), COALESCE($32, 100),
 			COALESCE($33, 1000000), COALESCE($34, 5000000), $35, COALESCE($36, 'emerald'), COALESCE($37, 'Sehat Alami, Hidup Harmoni'),
 			$38, $39, $40, $41, $42, $43,
-			$44, $45
+			$44, $45, $46
 		)
 		ON CONFLICT (user_id) DO UPDATE SET
 			business_name = EXCLUDED.business_name,
@@ -370,6 +373,7 @@ func (h *AdminHandler) UpdateSettings(c *gin.Context) {
 			store_features = COALESCE(EXCLUDED.store_features, settings.store_features),
 			custom_domain = $44,
 			favicon_url = COALESCE(EXCLUDED.favicon_url, settings.favicon_url),
+			barcode_settings = COALESCE(EXCLUDED.barcode_settings, settings.barcode_settings),
 			updated_at = CURRENT_TIMESTAMP
 	`, utils.GenerateUUID(), tenantID, bName, req.BusinessAddress, req.BusinessPhone, req.BusinessEmail,
 		req.BusinessLogo, req.LogoURL, req.Description, req.TaxRate, req.DefaultDiscount, curr,
@@ -379,7 +383,7 @@ func (h *AdminHandler) UpdateSettings(c *gin.Context) {
 		req.MinSpendForMember, req.PointRate, req.PointValue,
 		req.GoldThreshold, req.PlatinumThreshold, req.AuthBackground, req.ThemeColor, req.Tagline,
 		req.InstagramURL, req.FacebookURL, req.WhatsAppNumber, req.FooterText, req.StoreReviews, req.StoreFeatures,
-		cleanCustomDomain, req.FaviconURL)
+		cleanCustomDomain, req.FaviconURL, req.BarcodeSettings)
 
 	if err != nil {
 		utils.RespondError(c, http.StatusInternalServerError, err.Error())
