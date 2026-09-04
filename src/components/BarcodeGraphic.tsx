@@ -49,6 +49,43 @@ export function getCode128Pattern(text: string): string {
   return pattern;
 }
 
+const EAN_L = ['3211', '2221', '2122', '1411', '1132', '1231', '1114', '1312', '1213', '3112'];
+const EAN_G = ['1123', '1222', '2212', '1141', '2311', '1321', '4111', '2131', '3121', '2113'];
+const EAN_R = EAN_L;
+const EAN_PARITY = [
+  'LLLLLL', 'LLGLGG', 'LLGGLG', 'LLGGGL', 'LGLLGG',
+  'LGGLLG', 'LGGGLL', 'LGLGLG', 'LGLGGL', 'LGGLGL'
+];
+
+/**
+ * Generate standard alternating Bar/Space module pattern for EAN-13 (ISO/IEC 15420)
+ * Total module sum is always 95 modules across 59 elements (alternating bar/space).
+ */
+export function getEan13Pattern(code: string): string {
+  const digitsOnly = (code || '').replace(/\D/g, '');
+  const padded = (digitsOnly + '000000000000').slice(0, 12);
+  let sum = 0;
+  for (let i = 0; i < 12; i++) {
+    sum += parseInt(padded[i], 10) * (i % 2 === 0 ? 1 : 3);
+  }
+  const check = (10 - (sum % 10)) % 10;
+  const full13 = padded + check;
+
+  const p = EAN_PARITY[parseInt(full13[0], 10)] || EAN_PARITY[0];
+  let pattern = '111'; // start guard (bar 1, space 1, bar 1)
+  for (let i = 0; i < 6; i++) {
+    const d = parseInt(full13[i + 1], 10);
+    pattern += p[i] === 'L' ? EAN_L[d] : EAN_G[d];
+  }
+  pattern += '11111'; // center guard (space 1, bar 1, space 1, bar 1, space 1)
+  for (let i = 0; i < 6; i++) {
+    const d = parseInt(full13[i + 7], 10);
+    pattern += EAN_R[d];
+  }
+  pattern += '111'; // end guard (bar 1, space 1, bar 1)
+  return pattern;
+}
+
 /**
  * Generate standard 13-digit EAN-13 barcode with prefix 899 (Indonesia) and valid check digit
  * Universally recognized by ALL phone cameras, tablets, and 1D/2D hardware scanners.
@@ -221,6 +258,8 @@ export const BarcodeGraphic: React.FC<BarcodeGraphicProps> = ({
           } else {
             // For 1D barcode lines on sticker: stretch across full area width specified by user
             svgRef.current.setAttribute('preserveAspectRatio', 'none');
+            svgRef.current.removeAttribute('width');
+            svgRef.current.removeAttribute('height');
             svgRef.current.style.width = '100%';
             svgRef.current.style.height = '100%';
           }

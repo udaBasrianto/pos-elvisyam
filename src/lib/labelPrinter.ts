@@ -15,9 +15,9 @@
  * - Browser System Print (Pixel-perfect @page CSS grid layout)
  */
 
-import { CODE128_PATTERNS, getCode128Pattern } from '@/components/BarcodeGraphic';
+import { CODE128_PATTERNS, getCode128Pattern, getEan13Pattern } from '@/components/BarcodeGraphic';
 
-export { CODE128_PATTERNS, getCode128Pattern };
+export { CODE128_PATTERNS, getCode128Pattern, getEan13Pattern };
 
 export interface LabelPreset {
   id: string;
@@ -722,68 +722,93 @@ export function generateTsplLabel(
             tspl += `QRCODE ${Math.max(0, startX)},${startY},M,${qrCellSize},A,0,"${escapeTspl(code)}"\r\n`;
             currentY += (qrCellSize * 16) + 2 + sectionGapDots + padVDots;
           } else {
-            let tsplType = "128";
-            if (opts.barcodeType === 'EAN13') tsplType = "EAN13";
-            else if (opts.barcodeType === 'EAN8') tsplType = "EAN8";
-            else if (opts.barcodeType === 'UPC') tsplType = "UPCA";
-            else if (opts.barcodeType === 'CODE39') tsplType = "39";
-            else if (opts.barcodeType === 'ITF') tsplType = "ITF14";
-            else if (opts.barcodeType === 'CODABAR') tsplType = "CODA";
-
-            // humanReadable = 0 to prevent hardware overlapping numbers!
             const cleanCode = (code || '').trim();
-            let baseModules = 60;
-            if (tsplType === 'EAN13' || tsplType === 'UPCA') {
-              baseModules = 95;
-            } else if (tsplType === 'EAN8') {
-              baseModules = 67;
-            } else if (tsplType === '39') {
-              baseModules = (cleanCode.length + 2) * 14;
-            } else if (tsplType === 'ITF14') {
-              baseModules = ((cleanCode.length * 2 + 1) * 2 + (cleanCode.length * 3 + 6));
+            const upperType = (opts.barcodeType || 'CODE128').toUpperCase();
+
+            // Check if we have exact alternating bar/space pattern for smooth scaling
+            let pattern = '';
+            if (upperType === 'EAN13' || upperType === 'EAN-13') {
+              pattern = getEan13Pattern(cleanCode);
+            } else if (upperType === 'CODE128' || upperType === '128' || !opts.barcodeType) {
+              pattern = getCode128Pattern(cleanCode);
+            }
+
+            if (pattern) {
+              // Smooth, sub-dot Bresenham distribution across exact percentage width
+              let totalModules = 0;
+              for (let c = 0; c < pattern.length; c++) {
+                totalModules += parseInt(pattern[c], 10) || 1;
+              }
+
+              // Target dots derived from barcodeAreaWidthPercent (e.g. 50% - 100%)
+              const rawTarget = Math.floor(singleLabelW * ((opts.barcodeAreaWidthPercent ?? 90) / 100));
+              const barcodeWidthDots = Math.max(totalModules, Math.min(singleLabelW - 8, rawTarget));
+
+              let startX = colOffsetX + Math.max(0, Math.floor((singleLabelW - barcodeWidthDots) / 2)) + Math.floor(offBc.x * dotsPerMm) + padHDots;
+              if (opts.textAlign === 'left') {
+                startX = colOffsetX + 4 + Math.floor(offBc.x * dotsPerMm) + padHDots;
+              } else if (opts.textAlign === 'right') {
+                startX = colOffsetX + Math.max(0, singleLabelW - barcodeWidthDots - 4) + Math.floor(offBc.x * dotsPerMm) - padHDots;
+              }
+              const startY = Math.max(0, currentY + Math.floor(offBc.y * dotsPerMm));
+
+              let curModule = 0;
+              for (let i = 0; i < pattern.length; i++) {
+                const modCount = parseInt(pattern[i], 10) || 1;
+                const x1 = Math.round(curModule * (barcodeWidthDots / totalModules));
+                curModule += modCount;
+                const x2 = Math.round(curModule * (barcodeWidthDots / totalModules));
+                const barW = x2 - x1;
+                const isBar = (i % 2 === 0);
+                if (isBar && barW > 0) {
+                  tspl += `BAR ${startX + x1},${startY},${barW},${barcodeHeight}\r\n`;
+                }
+              }
+              currentY += barcodeHeight + 2 + sectionGapDots + padVDots;
             } else {
-              // Code 128
-              const isAllDigits = /^\d+$/.test(cleanCode);
-              const dataChars = isAllDigits ? Math.ceil(cleanCode.length / 2) : cleanCode.length;
-              baseModules = (dataChars * 11) + 37;
+              let tsplType = "128";
+              if (opts.barcodeType === 'EAN8') tsplType = "EAN8";
+              else if (opts.barcodeType === 'UPC') tsplType = "UPCA";
+              else if (opts.barcodeType === 'CODE39') tsplType = "39";
+              else if (opts.barcodeType === 'ITF') tsplType = "ITF14";
+              else if (opts.barcodeType === 'CODABAR') tsplType = "CODA";
+
+              let baseModules = 60;
+              if (tsplType === 'EAN8') baseModules = 67;
+              else if (tsplType === 'UPCA') baseModules = 95;
+              else if (tsplType === '39') baseModules = (cleanCode.length + 2) * 14;
+              else if (tsplType === 'ITF14') baseModules = ((cleanCode.length * 2 + 1) * 2 + (cleanCode.length * 3 + 6));
+
+              const targetBarcodeDots = Math.floor(singleLabelW * ((opts.barcodeAreaWidthPercent ?? 90) / 100));
+              const calculatedNarrow = Math.max(1, Math.floor(targetBarcodeDots / Math.max(1, baseModules)));
+              const ratioMult = opts.barcodeWidthRatio && opts.barcodeWidthRatio !== 1.0 ? opts.barcodeWidthRatio : 1.0;
+              let narrowBar = Math.max(1, Math.min(6, Math.round(calculatedNarrow * ratioMult)));
+
+              while (narrowBar > 1 && (baseModules * narrowBar) > (singleLabelW - 8)) {
+                narrowBar--;
+              }
+
+              const wideBar = Math.max(narrowBar + 1, Math.round(narrowBar * 2));
+              let estimatedBarcodeDots = 0;
+              if (tsplType === '39') {
+                estimatedBarcodeDots = (cleanCode.length + 2) * (3 * wideBar + 7 * narrowBar);
+              } else if (tsplType === 'ITF14') {
+                estimatedBarcodeDots = ((cleanCode.length * 2 + 1) * wideBar + (cleanCode.length * 3 + 6) * narrowBar);
+              } else {
+                estimatedBarcodeDots = baseModules * narrowBar;
+              }
+
+              let startX = colOffsetX + Math.max(0, Math.floor((singleLabelW - estimatedBarcodeDots) / 2)) + Math.floor(offBc.x * dotsPerMm) + padHDots;
+              if (opts.textAlign === 'left') {
+                startX = colOffsetX + 4 + Math.floor(offBc.x * dotsPerMm) + padHDots;
+              } else if (opts.textAlign === 'right') {
+                startX = colOffsetX + Math.max(0, singleLabelW - estimatedBarcodeDots - 4) + Math.floor(offBc.x * dotsPerMm) - padHDots;
+              }
+              const startY = Math.max(0, currentY + Math.floor(offBc.y * dotsPerMm));
+
+              tspl += `BARCODE ${Math.max(0, startX)},${startY},"${tsplType}",${barcodeHeight},0,0,${narrowBar},${wideBar},"${escapeTspl(code)}"\r\n`;
+              currentY += barcodeHeight + 2 + sectionGapDots + padVDots;
             }
-
-            // Target barcode width in dots derived from barcodeAreaWidthPercent (e.g. 50% - 100%)
-            const targetBarcodeDots = Math.floor(singleLabelW * ((opts.barcodeAreaWidthPercent ?? 90) / 100));
-            const calculatedNarrow = Math.max(1, Math.floor(targetBarcodeDots / Math.max(1, baseModules)));
-            const ratioMult = opts.barcodeWidthRatio && opts.barcodeWidthRatio !== 1.0 ? opts.barcodeWidthRatio : 1.0;
-            let narrowBar = Math.max(1, Math.min(6, Math.round(calculatedNarrow * ratioMult)));
-
-            // Prevent barcode from exceeding label boundaries
-            while (narrowBar > 1 && (baseModules * narrowBar) > (singleLabelW - 8)) {
-              narrowBar--;
-            }
-
-            const wideBar = Math.max(narrowBar + 1, Math.round(narrowBar * 2));
-            let estimatedBarcodeDots = 0;
-            if (tsplType === 'EAN13' || tsplType === 'UPCA') {
-              estimatedBarcodeDots = 95 * narrowBar;
-            } else if (tsplType === 'EAN8') {
-              estimatedBarcodeDots = 67 * narrowBar;
-            } else if (tsplType === '39') {
-              estimatedBarcodeDots = (cleanCode.length + 2) * (3 * wideBar + 7 * narrowBar);
-            } else if (tsplType === 'ITF14') {
-              estimatedBarcodeDots = ((cleanCode.length * 2 + 1) * wideBar + (cleanCode.length * 3 + 6) * narrowBar);
-            } else {
-              estimatedBarcodeDots = baseModules * narrowBar;
-            }
-
-            // Center exactly inside the label column:
-            let startX = colOffsetX + Math.max(0, Math.floor((singleLabelW - estimatedBarcodeDots) / 2)) + Math.floor(offBc.x * dotsPerMm) + padHDots;
-            if (opts.textAlign === 'left') {
-              startX = colOffsetX + 4 + Math.floor(offBc.x * dotsPerMm) + padHDots;
-            } else if (opts.textAlign === 'right') {
-              startX = colOffsetX + Math.max(0, singleLabelW - estimatedBarcodeDots - 4) + Math.floor(offBc.x * dotsPerMm) - padHDots;
-            }
-            const startY = Math.max(0, currentY + Math.floor(offBc.y * dotsPerMm));
-
-            tspl += `BARCODE ${Math.max(0, startX)},${startY},"${tsplType}",${barcodeHeight},0,0,${narrowBar},${wideBar},"${escapeTspl(code)}"\r\n`;
-            currentY += barcodeHeight + 2 + sectionGapDots + padVDots;
           }
         } else if (elemKey === 'barcodeText' && opts.showBarcodeText && code) {
           const posX = Math.max(0, getBaseX(offBct.x) + padHDots);
@@ -1037,14 +1062,29 @@ export async function generateRasterLabelBitmap(
         }
       } else if (elemKey === 'barcode' && opts.showBarcode && code) {
         y += 2; // small quiet zone
-        const barcodePattern = getCode128Pattern(code);
+        const upperType = (opts.barcodeType || 'CODE128').toUpperCase();
+        let barcodePattern = '';
+        if (upperType === 'EAN13' || upperType === 'EAN-13') {
+          barcodePattern = getEan13Pattern(code);
+        } else {
+          barcodePattern = getCode128Pattern(code);
+        }
+
         if (barcodePattern) {
           const digitsH = (opts.showBarcodeText && code) ? barcodeTextFontPx + 2 : 0;
           const priceH = (opts.showPrice && price) ? priceFontPx + 2 : 0;
           const userBcDots = opts.barcodeHeightMm ? Math.max(8, Math.round(opts.barcodeHeightMm * dpmm)) : 0;
           const maxAvailableDots = Math.max(8, canvas.height - y - digitsH - priceH - 3);
           const barH = userBcDots > 0 ? Math.min(userBcDots, maxAvailableDots) : Math.max(8, Math.min(48, maxAvailableDots));
-          const barW = Math.min(singleLabelW - 8, Math.floor(singleLabelW * ((opts.barcodeAreaWidthPercent ?? 90) / 100)));
+
+          let totalModules = 0;
+          for (let c = 0; c < barcodePattern.length; c++) {
+            totalModules += parseInt(barcodePattern[c], 10) || 1;
+          }
+
+          const rawTarget = Math.floor(singleLabelW * ((opts.barcodeAreaWidthPercent ?? 90) / 100));
+          const barW = Math.max(totalModules, Math.min(singleLabelW - 8, rawTarget));
+
           let startX = colOffsetX + Math.floor((singleLabelW - barW) / 2) + offBc.x * dpmm + elemPadHDots;
           if (opts.textAlign === 'left') {
             startX = colOffsetX + Math.floor(padH * dpmm) + offBc.x * dpmm + elemPadHDots;
@@ -1053,19 +1093,17 @@ export async function generateRasterLabelBitmap(
           }
           const startY = y + offBc.y * dpmm;
 
-          let totalModules = 0;
-          for (let c = 0; c < barcodePattern.length; c++) {
-            totalModules += parseInt(barcodePattern[c], 10) || 1;
-          }
-          const moduleW = totalModules > 0 ? barW / totalModules : 1;
-          let curX = startX;
+          let curModule = 0;
           for (let i = 0; i < barcodePattern.length; i++) {
-            const w = (parseInt(barcodePattern[i], 10) || 1) * moduleW;
+            const modCount = parseInt(barcodePattern[i], 10) || 1;
+            const x1 = Math.round(curModule * (barW / totalModules));
+            curModule += modCount;
+            const x2 = Math.round(curModule * (barW / totalModules));
+            const w = x2 - x1;
             const isBar = (i % 2 === 0);
-            if (isBar) {
-              ctx.fillRect(curX, startY, Math.ceil(w), barH);
+            if (isBar && w > 0) {
+              ctx.fillRect(startX + x1, startY, w, barH);
             }
-            curX += w;
           }
           y += barH + 2 + sectionGapDots + elemPadVDots;
         }

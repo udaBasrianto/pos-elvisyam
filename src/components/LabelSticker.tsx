@@ -223,6 +223,7 @@ export const LabelSticker: React.FC<LabelStickerProps> = ({
               }}
             >
               <BarcodeGraphic
+                key={`barcode-${barcode}-${options.barcodeAreaWidthPercent ?? 90}-${options.barcodeWidthRatio || 1.0}-${align}`}
                 value={barcode}
                 format={options.barcodeType || 'CODE128'}
                 fontFamily={options.fontFamily || 'monospace'}
