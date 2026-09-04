@@ -55,6 +55,7 @@ import Purchases from "./pages/Purchases";
 import Payroll from "./pages/Payroll";
 import Assets from "./pages/Assets";
 import BarcodePrint from "./pages/BarcodePrint";
+import LabelDesigner from "./pages/LabelDesigner";
 import StorefrontSettings from "./pages/StorefrontSettings";
 
 import { HardwareProvider } from "@/contexts/HardwareContext";
@@ -255,6 +256,16 @@ function AppRoutes() {
           }
         />
         <Route
+          path="/label-designer"
+          element={
+            <RoleProtectedRoute roles={['admin', 'manager', 'kasir']}>
+              <Layout>
+                <LabelDesigner />
+              </Layout>
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
           path="/settings"
           element={
             <RoleProtectedRoute roles={['admin']}>
@@ -354,6 +365,26 @@ function AppRoutes() {
           <RoleProtectedRoute roles={['admin', 'manager', 'kasir']}>
             <Layout>
               <BarcodePrint />
+            </Layout>
+          </RoleProtectedRoute>
+        }
+      />
+      <Route
+        path="/label-designer"
+        element={
+          <RoleProtectedRoute roles={['admin', 'manager', 'kasir']}>
+            <Layout>
+              <LabelDesigner />
+            </Layout>
+          </RoleProtectedRoute>
+        }
+      />
+      <Route
+        path="/label-templates"
+        element={
+          <RoleProtectedRoute roles={['admin', 'manager', 'kasir']}>
+            <Layout>
+              <LabelDesigner />
             </Layout>
           </RoleProtectedRoute>
         }

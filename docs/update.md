@@ -195,3 +195,4 @@ Audit komprehensif dilakukan pada seluruh menu navigasi sidebar aplikasi (Fronte
 | 27 | **Request Fitur** | `/feature-requests` | Normal | Normal | Saran & masukan fitur pengguna tersimpan ke database. |
 | 28 | **Pusat Bantuan** | `/discussions` | Normal | Normal | Diskusi tiket & troubleshooting berjalan normal. |
 | 29 | **Kelola Tenant** | `/tenants` | Normal | Normal | Modul khusus Super Admin untuk kontrol tenant SaaS aktif. |
+| 30 | **Desain Label (Studio)** | `/label-designer` | Normal | Normal | **Menu Baru**: Visual studio template barcode ala Open Label (diagram pita roll, caliper dimensi mm, 1-4 kolom, bentuk persegi/bulat/oval, kalkulator lebar kertas). |

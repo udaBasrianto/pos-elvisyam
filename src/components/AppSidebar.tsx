@@ -34,6 +34,7 @@ import {
   UserCheck,
   Lightbulb,
   ScanBarcode,
+  LayoutTemplate,
   Chrome,
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
@@ -153,6 +154,7 @@ export function AppSidebar() {
         { title: "Produk", url: "/products", icon: Package },
         { title: "Cetak Barcode", url: "/barcode-settings", icon: ScanBarcode },
         ...((isAdmin || isManager) ? [
+          { title: "Desain Label (Studio)", url: "/label-designer", icon: LayoutTemplate },
           { title: "Pembelian (PO)", url: "/purchases", icon: ShoppingBag },
           { title: "Stock Opname", url: "/stock-opname", icon: ClipboardCheck },
           { title: "Konsinyasi", url: "/consignment", icon: Handshake },
