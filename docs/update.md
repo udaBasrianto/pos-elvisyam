@@ -157,3 +157,41 @@ Pada modul produk saat ini, data produk didesain terutama untuk kebutuhan invent
 * [ ] **Fase 3: Size Chart & Harga Coret Promosi**
   * Tambahkan kolom harga coret dan upload size chart.
   * Tampilkan badge diskon serta tombol pop-up panduan ukuran di Toko Online.
+
+---
+
+## 5. Laporan Hasil Audit Menu Sidebar (Full System Audit)
+
+Audit komprehensif dilakukan pada seluruh menu navigasi sidebar aplikasi (Frontend, Backend Endpoint, dan Database Schema):
+
+| No | Modul / Menu Sidebar | Path Halaman | Status Frontend | Status API Backend | Catatan / Hasil Perbaikan |
+| :---: | :--- | :--- | :---: | :---: | :--- |
+| 1 | **Dashboard** | `/dashboard` | Normal | Normal | KPI, chart transaksi harian/bulanan, dan summary sinkron. |
+| 2 | **Kasir (POS)** | `/pos` | Normal | Normal | Transaksi POS, search SKU/nama, diskon, tax, modal pembayaran lancar. |
+| 3 | **Riwayat Transaksi** | `/transactions` | Normal | Normal | Detail transaksi, cetak struk ulang, status void/complete lancar. |
+| 4 | **Order Online** | `/online-orders` | Normal | Normal | Badge pending order, update status kirim, verifikasi pembayaran lancar. |
+| 5 | **Konfigurasi Toko** | `/storefront-settings` | Normal | Normal | Pengaturan nama toko, jam buka, rekening bank, pengiriman lancar. |
+| 6 | **Katalog Produk** | `/products` | Normal | Normal | CRUD produk, upload gambar, penyesuaian stok lancar. |
+| 7 | **Cetak Barcode** | `/barcode-settings` | Normal | Normal | Pratinjau label, penyesuaian panjang barcode (100% full width) lancar. |
+| 8 | **Pembelian (PO)** | `/purchases` | Normal | Normal | Buat PO ke supplier, update status penerimaan barang lancar. |
+| 9 | **Stock Opname** | `/stock-opname` | Normal | Normal | Sesi hitung fisik, selisih stok, dan commit penyesuaian stok lancar. |
+| 10 | **Konsinyasi** | `/consignment` | Normal | Normal | Perhitungan bagi hasil konsinyasi & pelunasan hutang titip lancar. |
+| 11 | **Kategori Produk** | `/categories` | Normal | Normal | Tambah, ubah, hapus kategori lancar. |
+| 12 | **Merek (Brands)** | `/brands` | Normal | Normal | Tambah, ubah, hapus merek lancar. |
+| 13 | **Riwayat Stok** | `/stock-movements` | Normal | Normal | Log mutasi stok masuk/keluar/penjualan tercatat akurat. |
+| 14 | **Pendapatan Lain** | `/incomes` | Normal | **Diperbaiki** | **Fixed**: Fallback `title` otomatis jika form hanya mengisi nama project/klien, kolom `date` disinkronkan, constraint NOT NULL dilepas. |
+| 15 | **Pengeluaran** | `/expenses` | Normal | **Diperbaiki** | **Fixed**: Coalesce tanggal dan mapping category/category_id agar simpan pengeluaran 100% berhasil. |
+| 16 | **Manajemen Aset** | `/assets` | Normal | Normal | Inventaris aset toko, penyusutan tahunan, nilai sisa berjalan normal. |
+| 17 | **Laporan Keuangan** | `/reports` | Normal | **Diperbaiki** | **Fixed**: `GetFinancialSummary` & laporan pengeluaran harian/bulanan/tahunan kini menggunakan `COALESCE(expense_date, date, created_at::date)` dan multi-tenant fallback. |
+| 18 | **Analisis AI** | `/ai-analysis` | Normal | Normal | Insight cerdas kecepatan perputaran stok & prediksi penjualan aktif. |
+| 19 | **Bagi Hasil** | `/profit-sharing` | Normal | **Diperbaiki** | **Fixed**: Perhitungan laba bersih terintegrasi dengan HPP, biaya riil pendapatan, dan sinkron ke saldo toko. |
+| 20 | **Dana Reinvestasi** | `/reinvestment` | Normal | **Diperbaiki** | **Fixed**: Endpoint `POST /reinvestment/sync` ditambahkan, card KPI `total_in` & `total_out` dipetakan, update/delete transaksi otomatis kalkulasi ulang saldo. |
+| 21 | **Pelanggan** | `/customers` | Normal | Normal | CRUD member/pelanggan dan riwayat belanja berjalan lancar. |
+| 22 | **Absensi & Gaji** | `/payroll` | Normal | Normal | Clock-in / clock-out kasir, slip gaji, dan history absensi lancar. |
+| 23 | **Kelola User** | `/users` | Normal | Normal | Manajemen admin, manager, dan kasir berjalan lancar. |
+| 24 | **Perangkat Keras** | `/hardware-settings` | Normal | Normal | Konfigurasi printer thermal (Bluetooth/USB) & secondary display lancar. |
+| 25 | **Pengaturan Toko** | `/settings` | Normal | Normal | Setup profil toko, pajak, struk, dan preferensi aplikasi lancar. |
+| 26 | **Riwayat Edit** | `/audit-logs` | Normal | Normal | Audit log aktivitas staf dan perubahan data tersimpan rapi. |
+| 27 | **Request Fitur** | `/feature-requests` | Normal | Normal | Saran & masukan fitur pengguna tersimpan ke database. |
+| 28 | **Pusat Bantuan** | `/discussions` | Normal | Normal | Diskusi tiket & troubleshooting berjalan normal. |
+| 29 | **Kelola Tenant** | `/tenants` | Normal | Normal | Modul khusus Super Admin untuk kontrol tenant SaaS aktif. |
