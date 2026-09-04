@@ -309,7 +309,7 @@ export const LabelSticker: React.FC<LabelStickerProps> = ({
             <span
               className="font-mono text-slate-700 block truncate"
               style={{
-                fontSize: `${isCompact ? 7 : options.barcodeTextFontSize || 8}px`,
+                fontSize: `${options.skuFontSize || (isCompact ? 7 : 8)}px`,
                 textAlign: align,
                 color: '#333333',
                 lineHeight: '1.0',

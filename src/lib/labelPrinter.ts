@@ -193,6 +193,7 @@ export interface LabelPrintOptions {
   productNameFontSize?: number; // in px (e.g. 9)
   barcodeTextFontSize?: number; // in px (e.g. 8)
   priceFontSize?: number; // in px (e.g. 12)
+  skuFontSize?: number; // in px (e.g. 7.5)
   categoryFontSize?: number; // in px (e.g. 7.5)
   subCategoryFontSize?: number; // in px (e.g. 7.5)
   brandFontSize?: number; // in px (e.g. 7.5)
@@ -297,6 +298,7 @@ export const DEFAULT_LABEL_OPTIONS: LabelPrintOptions = {
   productNameFontSize: 9,
   barcodeTextFontSize: 8,
   priceFontSize: 12,
+  skuFontSize: 7.5,
   categoryFontSize: 7.5,
   subCategoryFontSize: 7.5,
   brandFontSize: 7.5,
@@ -341,6 +343,10 @@ export function getProportionalLabelDimensions(
   barcodeTextFontSize: number;
   priceFontSize: number;
   storeNameFontSize: number;
+  skuFontSize: number;
+  categoryFontSize: number;
+  subCategoryFontSize: number;
+  brandFontSize: number;
   barcodeAreaWidthPercent: number;
   barcodeWidthRatio: number;
   suggestedHeightMm?: number;
@@ -373,6 +379,18 @@ export function getProportionalLabelDimensions(
   const priceFontSize = Number(
     (Math.max(1, Math.min(28, 12.0 * Math.pow(scale, 0.6) * Math.pow(barcodeRatio, 0.4)))).toFixed(1)
   );
+  const skuFontSize = Number(
+    (Math.max(1, Math.min(16, 7.2 * Math.pow(scale, 0.6) * Math.pow(barcodeRatio, 0.35)))).toFixed(1)
+  );
+  const categoryFontSize = Number(
+    (Math.max(1, Math.min(16, 7.0 * Math.pow(scale, 0.6) * Math.pow(barcodeRatio, 0.35)))).toFixed(1)
+  );
+  const subCategoryFontSize = Number(
+    (Math.max(1, Math.min(16, 7.0 * Math.pow(scale, 0.6) * Math.pow(barcodeRatio, 0.35)))).toFixed(1)
+  );
+  const brandFontSize = Number(
+    (Math.max(1, Math.min(16, 7.0 * Math.pow(scale, 0.6) * Math.pow(barcodeRatio, 0.35)))).toFixed(1)
+  );
 
   // Barcode area width & width ratio multiplier
   const barcodeAreaWidthPercent = base.barcodeAreaWidthPercent !== undefined
@@ -397,6 +415,10 @@ export function getProportionalLabelDimensions(
     productNameFontSize,
     barcodeTextFontSize,
     priceFontSize,
+    skuFontSize,
+    categoryFontSize,
+    subCategoryFontSize,
+    brandFontSize,
     barcodeAreaWidthPercent,
     barcodeWidthRatio,
     suggestedHeightMm,
@@ -436,6 +458,10 @@ export function autoFixLabelDimensions(
   const barcodeTextFontSize = Math.max(5.5, Math.min(10, Math.round(h * 0.35)));
   const priceFontSize = Math.max(7, Math.min(16, Math.round(h * 0.6)));
   const storeNameFontSize = Math.max(5.5, Math.min(9, Math.round(h * 0.35)));
+  const skuFontSize = Math.max(5.5, Math.min(9.5, Math.round(h * 0.35)));
+  const categoryFontSize = Math.max(5.5, Math.min(9.5, Math.round(h * 0.35)));
+  const subCategoryFontSize = Math.max(5.5, Math.min(9.5, Math.round(h * 0.35)));
+  const brandFontSize = Math.max(5.5, Math.min(9.5, Math.round(h * 0.35)));
 
   return {
     ...DEFAULT_LABEL_OPTIONS,
@@ -454,6 +480,10 @@ export function autoFixLabelDimensions(
     barcodeTextFontSize,
     priceFontSize,
     storeNameFontSize,
+    skuFontSize,
+    categoryFontSize,
+    subCategoryFontSize,
+    brandFontSize,
     sectionGapMm: 0.4,
     textAlign: 'center',
     elementOrder: DEFAULT_LABEL_ELEMENT_ORDER,
@@ -931,6 +961,7 @@ export async function generateRasterLabelBitmap(
     const productFontPx = opts.productNameFontSize || 9;
     const barcodeTextFontPx = opts.barcodeTextFontSize || 8;
     const priceFontPx = opts.priceFontSize || 12;
+    const skuFontPx = opts.skuFontSize || (isCompact ? 7 : 8);
     const fw = opts.fontWeight || '800';
     const sectionGap = opts.sectionGapMm ?? 0.5;
     const sectionGapDots = Math.floor(sectionGap * dpmm);
@@ -1021,9 +1052,9 @@ export async function generateRasterLabelBitmap(
         y += priceFontPx + 2 + sectionGapDots + elemPadVDots;
       } else if (elemKey === 'sku' && opts.showSku && sku) {
         const offSku = opts.elementPositions?.sku || { x: 0, y: 0 };
-        ctx.font = `bold ${barcodeTextFontPx}px ${fontFamilyCss}`;
-        ctx.fillText(sku, getBaseRasterX(offSku.x + (elemPad.horizontal || 0)), y + barcodeTextFontPx * 0.8 + offSku.y * dpmm);
-        y += barcodeTextFontPx + 2 + sectionGapDots + elemPadVDots;
+        ctx.font = `bold ${skuFontPx}px ${fontFamilyCss}`;
+        ctx.fillText(sku, getBaseRasterX(offSku.x + (elemPad.horizontal || 0)), y + skuFontPx * 0.8 + offSku.y * dpmm);
+        y += skuFontPx + 2 + sectionGapDots + elemPadVDots;
       } else if (elemKey === 'category' && opts.showCategory && (product.category || '')) {
         const offCat = opts.elementPositions?.category || { x: 0, y: 0 };
         const catFontPx = opts.categoryFontSize || (isCompact ? 6.5 : 7.5);

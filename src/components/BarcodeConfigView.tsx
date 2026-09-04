@@ -45,6 +45,7 @@ import {
   PinOff,
   FolderOpen,
   Tag,
+  Type,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useHardware } from '@/contexts/HardwareContext';
@@ -100,6 +101,127 @@ export const ELEMENT_CONFIG: Record<
   subCategory: { label: 'Sub-Kategori', icon: Layers, desc: 'Sub-kategori produk' },
   brand: { label: 'Merek', icon: Tag, desc: 'Merek / Brand produk' },
 };
+
+export interface TextElementFontConfig {
+  key: LabelElementKey;
+  label: string;
+  field: keyof LabelPrintOptions;
+  fallback: number;
+  min: number;
+  max: number;
+  step: number;
+  icon: React.ComponentType<{ className?: string }>;
+  description: string;
+  badge: string;
+  quickSizes: number[];
+}
+
+export const TEXT_ELEMENT_FONT_CONFIGS: TextElementFontConfig[] = [
+  {
+    key: 'productName',
+    label: 'Nama Produk',
+    field: 'productNameFontSize',
+    fallback: 9,
+    min: 5,
+    max: 24,
+    step: 0.5,
+    icon: Package,
+    description: 'Judul artikel / nama barang stiker',
+    badge: 'Produk',
+    quickSizes: [7, 8, 9, 10, 11, 13],
+  },
+  {
+    key: 'price',
+    label: 'Harga Jual',
+    field: 'priceFontSize',
+    fallback: 12,
+    min: 6,
+    max: 28,
+    step: 0.5,
+    icon: Zap,
+    description: 'Nominal harga jual produk (Rp xxx)',
+    badge: 'Harga',
+    quickSizes: [9, 10, 12, 14, 16, 18],
+  },
+  {
+    key: 'barcodeText',
+    label: 'Nomor Barcode (Digit)',
+    field: 'barcodeTextFontSize',
+    fallback: 8,
+    min: 5,
+    max: 18,
+    step: 0.5,
+    icon: ScanBarcode,
+    description: 'Angka barcode di bawah garis batang',
+    badge: 'Digit',
+    quickSizes: [6, 7, 8, 9, 10, 12],
+  },
+  {
+    key: 'storeName',
+    label: 'Nama Toko (Header)',
+    field: 'storeNameFontSize',
+    fallback: 8,
+    min: 5,
+    max: 18,
+    step: 0.5,
+    icon: ScanBarcode,
+    description: 'Header teks identitas toko di baris atas',
+    badge: 'Toko',
+    quickSizes: [6, 7, 8, 9, 10, 12],
+  },
+  {
+    key: 'sku',
+    label: 'Kode SKU',
+    field: 'skuFontSize',
+    fallback: 7.5,
+    min: 5,
+    max: 16,
+    step: 0.5,
+    icon: Layers,
+    description: 'Kode identifikasi varian / SKU produk',
+    badge: 'SKU',
+    quickSizes: [6, 7, 7.5, 8.5, 10, 12],
+  },
+  {
+    key: 'category',
+    label: 'Kategori Produk',
+    field: 'categoryFontSize',
+    fallback: 7.5,
+    min: 5,
+    max: 16,
+    step: 0.5,
+    icon: FolderOpen,
+    description: 'Teks kategori induk produk',
+    badge: 'Kategori',
+    quickSizes: [6, 7, 7.5, 8.5, 10, 12],
+  },
+  {
+    key: 'subCategory',
+    label: 'Sub-Kategori',
+    field: 'subCategoryFontSize',
+    fallback: 7.5,
+    min: 5,
+    max: 16,
+    step: 0.5,
+    icon: Layers,
+    description: 'Teks sub-kategori spesifik produk',
+    badge: 'Sub',
+    quickSizes: [6, 7, 7.5, 8.5, 10, 12],
+  },
+  {
+    key: 'brand',
+    label: 'Merek / Brand',
+    field: 'brandFontSize',
+    fallback: 7.5,
+    min: 5,
+    max: 16,
+    step: 0.5,
+    icon: Tag,
+    description: 'Merek produsen atau brand produk',
+    badge: 'Brand',
+    quickSizes: [6, 7, 7.5, 8.5, 10, 12],
+  },
+];
 
 export function BarcodeConfigView({
   initialProduct,
@@ -220,11 +342,10 @@ export function BarcodeConfigView({
     elemKey: LabelElementKey;
   } | null>(null);
 
-  // 📂 Collapsible Accordion Sections State
+  // 📂 Collapsible Accordion Sections State (Kertas, Elemen Terpadu, Antrean)
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     paper: true,
     elements: true,
-    positions: true,
     queue: true,
   });
 
@@ -236,11 +357,11 @@ export function BarcodeConfigView({
   }, []);
 
   const expandAllSections = useCallback(() => {
-    setOpenSections({ paper: true, elements: true, positions: true, queue: true });
+    setOpenSections({ paper: true, elements: true, queue: true });
   }, []);
 
   const collapseAllSections = useCallback(() => {
-    setOpenSections({ paper: false, elements: false, positions: false, queue: false });
+    setOpenSections({ paper: false, elements: false, queue: false });
   }, []);
 
   // Summary Metrics for Accordion Badges
@@ -522,6 +643,47 @@ export function BarcodeConfigView({
     };
   }, [options.widthMm, options.heightMm, options.columns]);
 
+  // 🔤 TYPOGRAPHY & FONT SIZE HANDLERS
+  const updateElementFontSize = useCallback(
+    (field: keyof LabelPrintOptions, val: number, min = 5, max = 28) => {
+      const clamped = Math.max(min, Math.min(max, Number(val.toFixed(1))));
+      setOptions((prev) => ({
+        ...prev,
+        [field]: clamped,
+      }));
+    },
+    []
+  );
+
+  const handleScaleAllFontSizes = useCallback((delta: number) => {
+    setOptions((prev) => {
+      const next = { ...prev };
+      TEXT_ELEMENT_FONT_CONFIGS.forEach((item) => {
+        const current = (next[item.field] as number) ?? item.fallback;
+        const clamped = Math.max(item.min, Math.min(item.max, Number((current + delta).toFixed(1))));
+        (next as any)[item.field] = clamped;
+      });
+      return next;
+    });
+    toast.success(`Semua ukuran font diubah ${delta > 0 ? `+${delta}` : delta} px`);
+  }, []);
+
+  const handleResetAllFontSizes = useCallback(() => {
+    const auto = autoFixLabelDimensions(options.presetId || '33x15-3col');
+    setOptions((prev) => ({
+      ...prev,
+      storeNameFontSize: auto.storeNameFontSize ?? 8,
+      productNameFontSize: auto.productNameFontSize ?? 9,
+      barcodeTextFontSize: auto.barcodeTextFontSize ?? 8,
+      priceFontSize: auto.priceFontSize ?? 12,
+      skuFontSize: auto.skuFontSize ?? 7.5,
+      categoryFontSize: auto.categoryFontSize ?? 7.5,
+      subCategoryFontSize: auto.subCategoryFontSize ?? 7.5,
+      brandFontSize: auto.brandFontSize ?? 7.5,
+    }));
+    toast.success('Ukuran font semua elemen berhasil direset ke ukuran proporsional optimal.');
+  }, [options.presetId]);
+
   // ── 🎯 ELEMENT DRAG & DROP & PRECISION CONTROLLER HANDLERS ──
   const isElementEnabled = useCallback(
     (key: LabelElementKey): boolean => {
@@ -741,6 +903,18 @@ export function BarcodeConfigView({
       saveLabelOptions(next);
       return next;
     });
+  }, []);
+
+  const handleResetElementOrder = useCallback(() => {
+    setOptions((prev) => {
+      const next = {
+        ...prev,
+        elementOrder: [...DEFAULT_LABEL_ELEMENT_ORDER],
+      };
+      saveLabelOptions(next);
+      return next;
+    });
+    toast.success('Urutan elemen berhasil dikembalikan ke standar awal!');
   }, []);
   const handleSelectPreset = (presetId: string) => {
     const found = LABEL_PRESETS.find((p) => p.id === presetId);
@@ -1408,7 +1582,7 @@ export function BarcodeConfigView({
             )}
           </div>
 
-          {/* B. ELEMEN ISI STIKER */}
+          {/* B. PENGATURAN LENGKAP ELEMEN BARCODE (VISIBILITAS, FONT, POSISI & URUTAN) */}
           <div className="bg-card text-card-foreground rounded-2xl border shadow-xs overflow-hidden transition-all">
             <button
               type="button"
@@ -1417,20 +1591,20 @@ export function BarcodeConfigView({
             >
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 text-primary">
-                  <ScanBarcode className="w-4 h-4" />
+                  <SlidersHorizontal className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-foreground tracking-tight">
-                    B. Elemen Isi Stiker
+                    B. Pengaturan Lengkap Elemen Barcode
                   </h3>
                   <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                    Centang bagian yang ingin dicetak pada stiker label Anda.
+                    Atur visibilitas, urutan vertikal, ukuran huruf, dan posisi presisi semua elemen stiker dalam satu tabel terpadu.
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0 ml-3">
                 <Badge variant="outline" className="text-[10px] font-mono px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300">
-                  {activeElementsCount} Elemen Aktif
+                  {activeElementsCount} / 9 Elemen Aktif
                 </Badge>
                 {openSections.elements ? (
                   <ChevronDown className="w-4 h-4 text-muted-foreground" />
@@ -1442,896 +1616,683 @@ export function BarcodeConfigView({
 
             {openSections.elements && (
               <div className="p-4 sm:p-5 pt-0 space-y-4 border-t">
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-              <label className="flex items-center gap-2.5 p-2.5 rounded-xl border bg-background hover:bg-muted/30 cursor-pointer transition-colors">
-                <Checkbox
-                  checked={options.showStoreName}
-                  onCheckedChange={(c) => setOptions((prev) => ({ ...prev, showStoreName: !!c }))}
-                />
-                <div className="flex flex-col">
-                  <span className="text-xs font-semibold text-foreground">Nama Toko</span>
-                  <span className="text-[10px] text-muted-foreground">{defaultBusinessName}</span>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-2.5 p-2.5 rounded-xl border bg-background hover:bg-muted/30 cursor-pointer transition-colors">
-                <Checkbox
-                  checked={options.showName}
-                  onCheckedChange={(c) => setOptions((prev) => ({ ...prev, showName: !!c }))}
-                />
-                <div className="flex flex-col">
-                  <span className="text-xs font-semibold text-foreground">Nama Produk</span>
-                  <span className="text-[10px] text-muted-foreground">Judul artikel</span>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-2.5 p-2.5 rounded-xl border bg-background hover:bg-muted/30 cursor-pointer transition-colors">
-                <Checkbox
-                  checked={options.showBarcode}
-                  onCheckedChange={(c) => setOptions((prev) => ({ ...prev, showBarcode: !!c }))}
-                />
-                <div className="flex flex-col">
-                  <span className="text-xs font-semibold text-foreground">Garis Barcode</span>
-                  <span className="text-[10px] text-muted-foreground">Batang 1D</span>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-2.5 p-2.5 rounded-xl border bg-background hover:bg-muted/30 cursor-pointer transition-colors">
-                <Checkbox
-                  checked={options.showBarcodeText}
-                  onCheckedChange={(c) => setOptions((prev) => ({ ...prev, showBarcodeText: !!c }))}
-                />
-                <div className="flex flex-col">
-                  <span className="text-xs font-semibold text-foreground">Nomor Barcode</span>
-                  <span className="text-[10px] text-muted-foreground">Angka digit</span>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-2.5 p-2.5 rounded-xl border bg-background hover:bg-muted/30 cursor-pointer transition-colors">
-                <Checkbox
-                  checked={options.showPrice}
-                  onCheckedChange={(c) => setOptions((prev) => ({ ...prev, showPrice: !!c }))}
-                />
-                <div className="flex flex-col">
-                  <span className="text-xs font-semibold text-foreground">Harga Jual</span>
-                  <span className="text-[10px] text-muted-foreground">Nominal Rp</span>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-2.5 p-2.5 rounded-xl border bg-background hover:bg-muted/30 cursor-pointer transition-colors">
-                <Checkbox
-                  checked={options.showSku}
-                  onCheckedChange={(c) => setOptions((prev) => ({ ...prev, showSku: !!c }))}
-                />
-                <div className="flex flex-col">
-                  <span className="text-xs font-semibold text-foreground">Kode SKU</span>
-                  <span className="text-[10px] text-muted-foreground">Kode stok</span>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-2.5 p-2.5 rounded-xl border bg-background hover:bg-muted/30 cursor-pointer transition-colors">
-                <Checkbox
-                  checked={options.showCategory}
-                  onCheckedChange={(c) => setOptions((prev) => ({ ...prev, showCategory: !!c }))}
-                />
-                <div className="flex flex-col min-w-0">
-                  <span className="text-xs font-semibold text-foreground">Kategori</span>
-                  <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">{activePreviewProduct?.category || 'Kategori induk'}</span>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-2.5 p-2.5 rounded-xl border bg-background hover:bg-muted/30 cursor-pointer transition-colors">
-                <Checkbox
-                  checked={options.showSubCategory}
-                  onCheckedChange={(c) => setOptions((prev) => ({ ...prev, showSubCategory: !!c }))}
-                />
-                <div className="flex flex-col min-w-0">
-                  <span className="text-xs font-semibold text-foreground">Sub-Kategori</span>
-                  <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">{(activePreviewProduct as any)?.subCategory || 'Sub-kategori'}</span>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-2.5 p-2.5 rounded-xl border bg-background hover:bg-muted/30 cursor-pointer transition-colors">
-                <Checkbox
-                  checked={options.showBrand}
-                  onCheckedChange={(c) => setOptions((prev) => ({ ...prev, showBrand: !!c }))}
-                />
-                <div className="flex flex-col min-w-0">
-                  <span className="text-xs font-semibold text-foreground">Merek</span>
-                  <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">{activePreviewProduct?.brand || 'Brand produk'}</span>
-                </div>
-              </label>
-            </div>
-
-            {/* Input Nama Toko Kustom jika dicentang */}
-            {options.showStoreName && (
-              <div className="p-3.5 rounded-xl bg-muted/50 dark:bg-muted/20 border border-border space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                    <span>Nama Toko pada Stiker Label:</span>
-                  </Label>
-                  <span className="text-[10.5px] text-muted-foreground font-medium">
-                    Profil: <strong className="text-foreground">{defaultBusinessName}</strong>
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={options.customStoreName !== undefined ? options.customStoreName : defaultBusinessName}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setOptions((prev) => ({ ...prev, customStoreName: val }));
-                    }}
-                    placeholder={`Contoh: ${defaultBusinessName}`}
-                    className="h-8 text-xs font-semibold bg-background rounded-xl"
-                  />
-                  {options.customStoreName && options.customStoreName !== defaultBusinessName && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setOptions((prev) => ({ ...prev, customStoreName: defaultBusinessName }))}
-                      className="h-8 text-xs px-2.5 rounded-xl shrink-0"
-                      title="Gunakan nama toko dari Pengaturan Akun"
-                    >
-                      Pakai Nama Toko
-                    </Button>
-                  )}
-                </div>
-                <p className="text-[10.5px] text-muted-foreground">
-                  Teks ini akan dicetak di bagian paling atas label stiker produk.
-                </p>
-              </div>
-            )}
-
-            {/* Opsi Format Baris Nama & Perataan */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-muted-foreground">Baris Nama Produk:</Label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setOptions((prev) => ({ ...prev, productNameTwoLines: false }))}
-                    className={`py-1.5 px-3 rounded-lg border text-xs font-semibold transition-all ${
-                      !options.productNameTwoLines
-                        ? 'bg-primary text-primary-foreground border-primary shadow-xs'
-                        : 'bg-background hover:bg-muted text-foreground border-border'
-                    }`}
-                  >
-                    1 Baris
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOptions((prev) => ({ ...prev, productNameTwoLines: true }))}
-                    className={`py-1.5 px-3 rounded-lg border text-xs font-semibold transition-all ${
-                      options.productNameTwoLines
-                        ? 'bg-primary text-primary-foreground border-primary shadow-xs'
-                        : 'bg-background hover:bg-muted text-foreground border-border'
-                    }`}
-                  >
-                    2 Baris (Bungkus)
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-muted-foreground">Perataan Posisi Teks:</Label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setOptions((prev) => ({ ...prev, textAlign: 'center' }))}
-                    className={`py-1.5 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
-                      options.textAlign === 'center'
-                        ? 'bg-primary text-primary-foreground border-primary shadow-xs'
-                        : 'bg-background hover:bg-muted text-foreground border-border'
-                    }`}
-                  >
-                    <AlignCenter className="w-3.5 h-3.5" />
-                    <span>Rata Tengah</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOptions((prev) => ({ ...prev, textAlign: 'left' }))}
-                    className={`py-1.5 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
-                      options.textAlign === 'left'
-                        ? 'bg-primary text-primary-foreground border-primary shadow-xs'
-                        : 'bg-background hover:bg-muted text-foreground border-border'
-                    }`}
-                  >
-                    <AlignLeft className="w-3.5 h-3.5" />
-                    <span>Rata Kiri</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* 📏 PENGATURAN TINGGI & LEBAR GARIS BARCODE */}
-            {options.showBarcode && (
-              <div className="p-3.5 bg-muted/40 dark:bg-muted/20 rounded-xl border border-border space-y-3.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                    <ScanBarcode className="w-4 h-4 text-primary" />
-                    <span>Ukuran Garis Barcode (Tinggi & Lebar)</span>
-                  </span>
-                  <Badge variant="outline" className="text-[10px] font-mono px-2 py-0.5 bg-background border-primary/20 text-primary">
-                    Tinggi: {options.barcodeHeightMm || 10}mm | Lebar: {options.barcodeAreaWidthPercent || 90}%
-                  </Badge>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  {/* Kontrol Tinggi Garis Barcode */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <Label className="text-muted-foreground font-semibold">Tinggi Garis Barcode:</Label>
-                      <span className="font-mono font-bold text-primary">
-                        {options.barcodeHeightMm || 10} mm
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min={3}
-                        max={35}
-                        step={0.5}
-                        value={options.barcodeHeightMm || 10}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setOptions((prev) => ({ ...prev, barcodeHeightMm: val }));
-                        }}
-                        className="w-full accent-primary cursor-pointer h-1.5 bg-muted rounded-lg"
-                      />
-                      <input
-                        type="number"
-                        min={3}
-                        max={35}
-                        step={0.5}
-                        value={options.barcodeHeightMm || 10}
-                        onChange={(e) => {
-                          const val = Math.max(3, Math.min(35, Number(e.target.value) || 3));
-                          setOptions((prev) => ({ ...prev, barcodeHeightMm: val }));
-                        }}
-                        className="w-14 h-7 text-xs font-mono font-bold bg-background text-center rounded-lg border"
-                      />
-                    </div>
-                    {/* Presets Cepat Tinggi */}
-                    <div className="flex items-center gap-1 pt-0.5">
-                      {[
-                        { label: '6mm', val: 6 },
-                        { label: '8mm', val: 8 },
-                        { label: '10mm', val: 10 },
-                        { label: '12mm', val: 12 },
-                        { label: '15mm', val: 15 },
-                        { label: '18mm', val: 18 },
-                      ].map((p) => (
-                        <button
-                          key={`bh-${p.val}`}
-                          type="button"
-                          onClick={() => setOptions((prev) => ({ ...prev, barcodeHeightMm: p.val }))}
-                          className={`flex-1 text-[10px] py-0.5 rounded font-mono transition-all ${
-                            (options.barcodeHeightMm || 10) === p.val
-                              ? 'bg-primary text-primary-foreground font-bold shadow-2xs'
-                              : 'bg-background hover:bg-muted text-muted-foreground border'
-                          }`}
-                        >
-                          {p.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Kontrol Lebar Garis Barcode */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <Label className="text-muted-foreground font-semibold">Lebar Garis Barcode:</Label>
-                      <span className="font-mono font-bold text-primary">
-                        {options.barcodeAreaWidthPercent || 90} %
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min={50}
-                        max={100}
-                        step={1}
-                        value={options.barcodeAreaWidthPercent || 90}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setOptions((prev) => ({ ...prev, barcodeAreaWidthPercent: val }));
-                        }}
-                        className="w-full accent-primary cursor-pointer h-1.5 bg-muted rounded-lg"
-                      />
-                      <input
-                        type="number"
-                        min={50}
-                        max={100}
-                        step={1}
-                        value={options.barcodeAreaWidthPercent || 90}
-                        onChange={(e) => {
-                          const val = Math.max(50, Math.min(100, Number(e.target.value) || 50));
-                          setOptions((prev) => ({ ...prev, barcodeAreaWidthPercent: val }));
-                        }}
-                        className="w-14 h-7 text-xs font-mono font-bold bg-background text-center rounded-lg border"
-                      />
-                    </div>
-                    {/* Presets Cepat Lebar */}
-                    <div className="flex items-center gap-1 pt-0.5">
-                      {[
-                        { label: '75%', val: 75 },
-                        { label: '82%', val: 82 },
-                        { label: '88%', val: 88 },
-                        { label: '92%', val: 92 },
-                        { label: '96%', val: 96 },
-                        { label: '100%', val: 100 },
-                      ].map((p) => (
-                        <button
-                          key={`bw-${p.val}`}
-                          type="button"
-                          onClick={() => setOptions((prev) => ({ ...prev, barcodeAreaWidthPercent: p.val }))}
-                          className={`flex-1 text-[10px] py-0.5 rounded font-mono transition-all ${
-                            (options.barcodeAreaWidthPercent || 90) === p.val
-                              ? 'bg-primary text-primary-foreground font-bold shadow-2xs'
-                              : 'bg-background hover:bg-muted text-muted-foreground border'
-                          }`}
-                        >
-                          {p.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Ketebalan Batang Barcode */}
-                <div className="pt-2 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="space-y-0.5">
-                    <Label className="text-xs font-semibold text-foreground">Ketebalan Garis (Rasio Batang):</Label>
-                    <p className="text-[10.5px] text-muted-foreground">Kerapatan & tebal garis hitam agar mudah terbaca scanner</p>
-                  </div>
-                  <div className="flex items-center gap-1 bg-background p-0.5 rounded-lg border shrink-0">
-                    {[
-                      { label: '0.8x (Tipis)', val: 0.8 },
-                      { label: '1.0x (Normal)', val: 1.0 },
-                      { label: '1.2x (Sedang)', val: 1.2 },
-                      { label: '1.5x (Tebal)', val: 1.5 },
-                      { label: '2.0x (Ekstra)', val: 2.0 },
-                    ].map((item) => (
-                      <button
-                        key={`ratio-${item.val}`}
-                        type="button"
-                        onClick={() => setOptions((prev) => ({ ...prev, barcodeWidthRatio: item.val }))}
-                        className={`px-2 py-1 text-[10.5px] font-semibold rounded-md transition-all ${
-                          (options.barcodeWidthRatio || 1.0) === item.val
-                            ? 'bg-primary text-primary-foreground shadow-2xs font-bold'
-                            : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                      >
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-            </div>
-            )}
-          </div>
-
-          {/* C. ATUR POSISI & TATA LETAK ELEMEN (GESER BEBAS / DRAG & DROP) */}
-          <div className="bg-card text-card-foreground rounded-2xl border shadow-xs overflow-hidden transition-all">
-            <button
-              type="button"
-              onClick={() => toggleSection('positions')}
-              className="w-full p-4 sm:p-5 flex items-center justify-between text-left hover:bg-muted/30 transition-colors"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 text-primary">
-                  <Move className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-foreground tracking-tight">
-                    C. Atur Posisi &amp; Tata Letak Elemen (Geser Bebas)
-                  </h3>
-                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                    Geser posisi nama toko, produk, barcode, harga dll dengan tombol arah atau drag stiker.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0 ml-3">
-                {customPositionsCount > 0 ? (
-                  <Badge className="text-[10px] font-mono px-2 py-0.5 bg-amber-500 text-white border-none">
-                    {customPositionsCount} Elemen Digeser
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="text-[10px] font-mono px-2 py-0.5">
-                    Default (0, 0)
-                  </Badge>
-                )}
-                {openSections.positions ? (
-                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                ) : (
-                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                )}
-              </div>
-            </button>
-
-            {openSections.positions && (
-              <div className="p-4 sm:p-5 pt-0 space-y-4 border-t">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-3 pt-4">
+                {/* TOOLBAR AKSI CEPAT TABEL ELEMEN */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-3.5 pb-1 border-b">
                   <div>
-                    <h4 className="text-xs font-bold text-foreground tracking-tight flex items-center gap-2">
-                      <span>Area Kontrol Presisi &amp; Urutan Elemen</span>
+                    <h4 className="text-xs font-bold text-foreground tracking-tight flex items-center gap-1.5">
+                      <span>Daftar &amp; Tata Letak Semua Elemen Stiker</span>
                     </h4>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
-                      Bisa geser langsung di stiker preview atau gunakan tombol arah presisi di bawah.
+                      Semua kontrol (tampil, urutan, ukuran huruf, dan posisi geser) dapat diatur langsung di baris setiap elemen.
                     </p>
                   </div>
 
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleResetAllPositions}
-                    className="h-7 text-xs text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 gap-1.5 self-start sm:self-auto rounded-lg"
-                    title="Kembalikan semua elemen ke posisi standar awal (0, 0)"
-                  >
-                    <RotateCcw className="w-3 h-3" />
-                    <span>Reset Semua Posisi</span>
-                  </Button>
-                </div>
-
-            {/* 1. Tombol Pilihan Elemen */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-semibold text-muted-foreground">Pilih Elemen yang Ingin Digeser:</Label>
-                <span className="text-[10px] text-muted-foreground font-mono">
-                  Offset Saat Ini: ({((options.elementPositions?.[selectedElement]?.x || 0) > 0 ? `+${options.elementPositions?.[selectedElement]?.x}` : (options.elementPositions?.[selectedElement]?.x || 0))} mm, {((options.elementPositions?.[selectedElement]?.y || 0) > 0 ? `+${options.elementPositions?.[selectedElement]?.y}` : (options.elementPositions?.[selectedElement]?.y || 0))} mm)
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {(['storeName', 'productName', 'barcode', 'barcodeText', 'price', 'sku', 'category', 'subCategory', 'brand'] as LabelElementKey[]).map((key) => {
-                  const conf = ELEMENT_CONFIG[key];
-                  if (!conf) return null;
-                  const isSelected = selectedElement === key;
-                  const pos = options.elementPositions?.[key] || { x: 0, y: 0 };
-                  const hasOffset = pos.x !== 0 || pos.y !== 0;
-                  const isEnabled = isElementEnabled(key);
-                  const IconComp = conf.icon;
-
-                  return (
-                    <div
-                      key={`elem-selector-${key}`}
-                      onClick={() => setSelectedElement(key)}
-                      className={`p-2.5 rounded-xl border text-left flex items-center justify-between gap-2 transition-all cursor-pointer select-none ${
-                        isSelected
-                          ? 'bg-primary text-primary-foreground border-primary shadow-sm ring-2 ring-primary/20'
-                          : 'bg-background hover:bg-muted/60 text-foreground border-border'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <IconComp className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-white' : 'text-primary'}`} />
-                        <div className="truncate">
-                          <p className="text-xs font-bold truncate leading-tight flex items-center gap-1.5">
-                            <span>{conf.label}</span>
-                            {hasOffset && (
-                              <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-amber-300' : 'bg-amber-500'} shrink-0`} title="Posisi digeser" />
-                            )}
-                          </p>
-                          <p className={`text-[9.5px] truncate ${isSelected ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
-                            {!isEnabled
-                              ? 'Nonaktif'
-                              : hasOffset
-                              ? `${pos.x > 0 ? `+${pos.x}` : pos.x}, ${pos.y > 0 ? `+${pos.y}` : pos.y} mm`
-                              : 'Default (0,0)'}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Tombol Cepat Aktifkan / Nonaktifkan Langsung di Card */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleElementEnabled(key);
-                        }}
-                        className={`text-[9px] px-2 py-0.5 rounded-md font-extrabold uppercase transition-all shrink-0 border ${
-                          isEnabled
-                            ? isSelected
-                              ? 'bg-white text-primary border-white hover:bg-white/90 shadow-2xs'
-                              : 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 shadow-2xs'
-                            : isSelected
-                              ? 'bg-primary-foreground/20 text-white border-white/30 hover:bg-primary-foreground/30'
-                              : 'bg-muted text-muted-foreground border-border hover:bg-muted/80'
-                        }`}
-                        title={isEnabled ? `Klik untuk Nonaktifkan ${conf.label}` : `Klik untuk Aktifkan ${conf.label}`}
-                      >
-                        {isEnabled ? 'AKTIF' : 'OFF'}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 2. D-PAD CONTROLLER & PRECISION NUDGE */}
-            <div className="p-3.5 rounded-xl border bg-muted/20 space-y-3.5">
-              {/* STATUS AKTIF / NONAKTIF ELEMEN TERPILIH */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl bg-background border shadow-2xs">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-foreground">
-                    Status {ELEMENT_CONFIG[selectedElement]?.label}:
-                  </span>
-                  <Badge
-                    variant={isElementEnabled(selectedElement) ? 'default' : 'secondary'}
-                    className={
-                      isElementEnabled(selectedElement)
-                        ? 'bg-emerald-600 hover:bg-emerald-600 text-white font-semibold text-[10px]'
-                        : 'bg-muted text-muted-foreground text-[10px]'
-                    }
-                  >
-                    {isElementEnabled(selectedElement) ? 'Sedang Aktif (Tampil di Stiker)' : 'Nonaktif (Tidak Dicetak)'}
-                  </Badge>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={isElementEnabled(selectedElement) ? 'outline' : 'default'}
-                  onClick={() => toggleElementEnabled(selectedElement)}
-                  className={`h-7 text-xs font-bold px-3 rounded-lg transition-all ${
-                    isElementEnabled(selectedElement)
-                      ? 'text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/30'
-                      : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
-                  }`}
-                >
-                  {isElementEnabled(selectedElement) ? 'Sembunyikan / Nonaktifkan' : '✓ Aktifkan di Stiker'}
-                </Button>
-              </div>
-              <div className="flex items-center justify-between border-b pb-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-foreground">
-                    Kontrol Geser: <span className="text-primary font-extrabold">{ELEMENT_CONFIG[selectedElement]?.label}</span>
-                  </span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-[10.5px] text-muted-foreground mr-1">Langkah:</span>
-                  {[0.2, 0.5, 1.0].map((step) => (
-                    <button
-                      key={`step-${step}`}
-                      type="button"
-                      onClick={() => setStepSize(step)}
-                      className={`px-2 py-0.5 rounded text-[10.5px] font-mono font-bold transition-all ${
-                        stepSize === step
-                          ? 'bg-primary text-primary-foreground shadow-2xs'
-                          : 'bg-background hover:bg-muted text-muted-foreground border'
-                      }`}
-                    >
-                      ±{step}mm
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* D-Pad & Sliders Layout */}
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                {/* Visual Directional Pad */}
-                <div className="flex flex-col items-center gap-1.5 shrink-0 py-1">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleNudge(selectedElement, 0, -stepSize)}
-                    className="h-8 w-24 text-xs font-bold gap-1 rounded-xl bg-background shadow-2xs hover:bg-purple-50 hover:text-primary dark:hover:bg-purple-950"
-                    title={`Geser ke Atas ${stepSize} mm`}
-                  >
-                    <ArrowUp className="w-3.5 h-3.5" />
-                    <span>Atas</span>
-                  </Button>
-
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => handleNudge(selectedElement, -stepSize, 0)}
-                      className="h-8 w-20 text-xs font-bold gap-1 rounded-xl bg-background shadow-2xs hover:bg-purple-50 hover:text-primary dark:hover:bg-purple-950"
-                      title={`Geser ke Kiri ${stepSize} mm`}
+                      onClick={() => handleScaleAllFontSizes(-0.5)}
+                      className="h-7 text-xs px-2.5 gap-1 rounded-lg hover:bg-muted"
+                      title="Kecilkan semua ukuran font sebesar 0.5px"
                     >
-                      <ArrowLeft className="w-3.5 h-3.5" />
-                      <span>Kiri</span>
-                    </Button>
-
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => handleCenterElement(selectedElement)}
-                      className="h-8 w-18 text-[11px] font-bold gap-1 rounded-xl shadow-2xs"
-                      title="Ratakan Horisontal ke Tengah (X: 0)"
-                    >
-                      <Target className="w-3 h-3 text-primary" />
-                      <span>Tengah</span>
+                      <Minus className="w-3 h-3" />
+                      <span>Font -0.5px</span>
                     </Button>
 
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => handleNudge(selectedElement, stepSize, 0)}
-                      className="h-8 w-20 text-xs font-bold gap-1 rounded-xl bg-background shadow-2xs hover:bg-purple-50 hover:text-primary dark:hover:bg-purple-950"
-                      title={`Geser ke Kanan ${stepSize} mm`}
+                      onClick={() => handleScaleAllFontSizes(0.5)}
+                      className="h-7 text-xs px-2.5 gap-1 rounded-lg hover:bg-muted"
+                      title="Perbesar semua ukuran font sebesar 0.5px"
                     >
-                      <span>Kanan</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
+                      <Plus className="w-3 h-3" />
+                      <span>Font +0.5px</span>
                     </Button>
-                  </div>
 
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleNudge(selectedElement, 0, stepSize)}
-                    className="h-8 w-24 text-xs font-bold gap-1 rounded-xl bg-background shadow-2xs hover:bg-purple-50 hover:text-primary dark:hover:bg-purple-950"
-                    title={`Geser ke Bawah ${stepSize} mm`}
-                  >
-                    <ArrowDown className="w-3.5 h-3.5" />
-                    <span>Bawah</span>
-                  </Button>
-                </div>
-
-                {/* Sliders & Numeric Fine-Tuning */}
-                <div className="flex-1 w-full space-y-3 pl-0 sm:pl-2">
-                  {/* Posisi X */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                        <SlidersHorizontal className="w-3 h-3 text-primary" />
-                        <span>Geser Horisontal (X mm):</span>
-                      </span>
-                      <span className="text-xs font-mono font-bold text-foreground bg-background px-2 py-0.5 rounded border">
-                        {(options.elementPositions?.[selectedElement]?.x || 0) > 0 ? `+${options.elementPositions?.[selectedElement]?.x || 0}` : (options.elementPositions?.[selectedElement]?.x || 0)} mm
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 shrink-0"
-                        onClick={() => handleNudge(selectedElement, -0.5, 0)}
-                        title="-0.5 mm"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </Button>
-                      <Slider
-                        value={[options.elementPositions?.[selectedElement]?.x || 0]}
-                        min={-20}
-                        max={20}
-                        step={0.2}
-                        onValueChange={([val]) => handleSetPos(selectedElement, 'x', val)}
-                        className="flex-1"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 shrink-0"
-                        onClick={() => handleNudge(selectedElement, 0.5, 0)}
-                        title="+0.5 mm"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Posisi Y */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                        <SlidersHorizontal className="w-3 h-3 text-primary" />
-                        <span>Geser Vertikal (Y mm):</span>
-                      </span>
-                      <span className="text-xs font-mono font-bold text-foreground bg-background px-2 py-0.5 rounded border">
-                        {(options.elementPositions?.[selectedElement]?.y || 0) > 0 ? `+${options.elementPositions?.[selectedElement]?.y || 0}` : (options.elementPositions?.[selectedElement]?.y || 0)} mm
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 shrink-0"
-                        onClick={() => handleNudge(selectedElement, 0, -0.5)}
-                        title="-0.5 mm (Atas)"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </Button>
-                      <Slider
-                        value={[options.elementPositions?.[selectedElement]?.y || 0]}
-                        min={-20}
-                        max={20}
-                        step={0.2}
-                        onValueChange={([val]) => handleSetPos(selectedElement, 'y', val)}
-                        className="flex-1"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 shrink-0"
-                        onClick={() => handleNudge(selectedElement, 0, 0.5)}
-                        title="+0.5 mm (Bawah)"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Action Row for Selected Element */}
-                  <div className="flex items-center justify-between pt-1">
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleResetElement(selectedElement)}
-                      className="h-7 text-xs text-muted-foreground hover:text-foreground gap-1 px-2"
+                      onClick={handleResetAllPositions}
+                      className="h-7 text-xs text-muted-foreground hover:text-foreground gap-1 rounded-lg"
+                      title="Kembalikan semua pergeseran posisi ke default (0,0)"
                     >
                       <RotateCcw className="w-3 h-3" />
-                      <span>Reset {ELEMENT_CONFIG[selectedElement]?.label}</span>
+                      <span>Reset Posisi</span>
                     </Button>
 
-                    {/* Stacking Order Buttons */}
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10.5px] text-muted-foreground">Urutan:</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleResetElementOrder}
+                      className="h-7 text-xs text-muted-foreground hover:text-foreground gap-1 rounded-lg"
+                      title="Kembalikan urutan susunan elemen ke standar"
+                    >
+                      <Layers className="w-3 h-3" />
+                      <span>Reset Urutan</span>
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleResetAllFontSizes}
+                      className="h-7 text-xs text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 gap-1 rounded-lg"
+                      title="Kembalikan semua ukuran font ke rasio proporsional bawaan stiker"
+                    >
+                      <Type className="w-3 h-3" />
+                      <span>Reset Font</span>
+                    </Button>
+                  </div>
+                </div>
+
+                {/* TABEL TERPADU DAFTAR ELEMEN */}
+                <div className="space-y-2.5">
+                  {getEffectiveElementOrder(options.elementOrder).map((elemKey, orderIdx, arr) => {
+                    const conf = ELEMENT_CONFIG[elemKey];
+                    if (!conf) return null;
+                    const isEnabled = isElementEnabled(elemKey);
+                    const isSelected = selectedElement === elemKey;
+                    const pos = options.elementPositions?.[elemKey] || { x: 0, y: 0 };
+                    const hasOffset = pos.x !== 0 || pos.y !== 0;
+                    const fontCfg = TEXT_ELEMENT_FONT_CONFIGS.find((c) => c.key === elemKey);
+                    const currentFontSize = fontCfg ? ((options[fontCfg.field] as number) ?? fontCfg.fallback) : 0;
+                    const IconComp = conf.icon;
+
+                    return (
+                      <div
+                        key={`unified-row-${elemKey}`}
+                        onClick={() => setSelectedElement(elemKey)}
+                        className={`p-3 rounded-xl border transition-all cursor-pointer select-none space-y-2.5 ${
+                          isSelected
+                            ? 'bg-primary/5 border-primary shadow-xs ring-1 ring-primary/30'
+                            : isEnabled
+                            ? 'bg-background border-border hover:border-primary/40 hover:bg-muted/20'
+                            : 'bg-muted/30 border-dashed border-border/70 opacity-75'
+                        }`}
+                      >
+                        {/* Baris Utama: Urutan, Identitas, Status Tampil, Ringkasan Nilai */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                          {/* Sisi Kiri: Tombol Urutan & Identitas Elemen */}
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {/* Tombol Reorder Up / Down */}
+                            <div className="flex items-center gap-0.5 shrink-0 bg-muted/40 rounded-lg p-0.5 border" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                disabled={orderIdx === 0}
+                                onClick={() => handleMoveElementOrder(elemKey, 'up')}
+                                className="w-5 h-5 rounded flex items-center justify-center hover:bg-muted text-muted-foreground disabled:opacity-30"
+                                title="Pindahkan ke atas"
+                              >
+                                <ChevronUp className="w-3.5 h-3.5" />
+                              </button>
+                              <span className="font-mono text-[10.5px] font-bold w-4 text-center text-foreground">
+                                {orderIdx + 1}
+                              </span>
+                              <button
+                                type="button"
+                                disabled={orderIdx === arr.length - 1}
+                                onClick={() => handleMoveElementOrder(elemKey, 'down')}
+                                className="w-5 h-5 rounded flex items-center justify-center hover:bg-muted text-muted-foreground disabled:opacity-30"
+                                title="Pindahkan ke bawah"
+                              >
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            {/* Icon & Nama Elemen */}
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                              isSelected ? 'bg-primary text-primary-foreground' : isEnabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+                            }`}>
+                              <IconComp className="w-4 h-4" />
+                            </div>
+
+                            <div className="truncate">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xs font-bold truncate ${isSelected ? 'text-primary font-black' : 'text-foreground'}`}>
+                                  {conf.label}
+                                </span>
+                                {hasOffset && (
+                                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 font-mono bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-300">
+                                    Geser ({pos.x > 0 ? `+${pos.x}` : pos.x}, {pos.y > 0 ? `+${pos.y}` : pos.y})
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-muted-foreground truncate">{conf.desc}</p>
+                            </div>
+                          </div>
+
+                          {/* Sisi Kanan: Switch Status Tampil & Posisi */}
+                          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center" onClick={(e) => e.stopPropagation()}>
+                            {/* Tombol Toggle Aktif / Nonaktif */}
+                            <button
+                              type="button"
+                              onClick={() => toggleElementEnabled(elemKey)}
+                              className={`text-[10px] px-2.5 py-1 rounded-lg font-bold uppercase transition-all border ${
+                                isEnabled
+                                  ? 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 shadow-2xs'
+                                  : 'bg-muted text-muted-foreground border-border hover:bg-muted/80'
+                              }`}
+                              title={isEnabled ? `Sembunyikan ${conf.label}` : `Tampilkan ${conf.label}`}
+                            >
+                              {isEnabled ? '✓ TAMPIL' : 'OFF'}
+                            </button>
+
+                            {/* Tombol Pilih & Fokus Geser */}
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={isSelected ? 'default' : 'outline'}
+                              onClick={() => setSelectedElement(elemKey)}
+                              className="h-7 text-xs px-2.5 rounded-lg gap-1"
+                            >
+                              <Move className="w-3 h-3" />
+                              <span>{isSelected ? 'Terpilih' : 'Geser Posisi'}</span>
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Baris Sekunder: Pengaturan Ukuran Huruf / Dimensi Barcode (Hanya jika Elemen Aktif) */}
+                        {isEnabled && (
+                          <div
+                            className="pt-2 border-t border-dashed flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {/* JIKA ELEMEN TEKS: KONTROL UKURAN FONT */}
+                            {fontCfg && (
+                              <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-2">
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <Type className="w-3.5 h-3.5 text-muted-foreground" />
+                                  <span className="text-[11px] font-semibold text-muted-foreground">Ukuran Font:</span>
+                                  <span className="font-mono text-xs font-bold text-primary px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20">
+                                    {currentFontSize.toFixed(1)} px
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 flex-1 max-w-sm">
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="outline"
+                                    disabled={currentFontSize <= fontCfg.min}
+                                    onClick={() => updateElementFontSize(fontCfg.field, currentFontSize - fontCfg.step, fontCfg.min, fontCfg.max)}
+                                    className="h-6 w-6 rounded"
+                                    title="-0.5px"
+                                  >
+                                    <Minus className="w-3 h-3" />
+                                  </Button>
+                                  <input
+                                    type="range"
+                                    min={fontCfg.min}
+                                    max={fontCfg.max}
+                                    step={fontCfg.step}
+                                    value={currentFontSize}
+                                    onChange={(e) => updateElementFontSize(fontCfg.field, parseFloat(e.target.value), fontCfg.min, fontCfg.max)}
+                                    className="w-full accent-primary h-1 bg-muted rounded appearance-none cursor-pointer"
+                                  />
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="outline"
+                                    disabled={currentFontSize >= fontCfg.max}
+                                    onClick={() => updateElementFontSize(fontCfg.field, currentFontSize + fontCfg.step, fontCfg.min, fontCfg.max)}
+                                    className="h-6 w-6 rounded"
+                                    title="+0.5px"
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                  </Button>
+                                </div>
+
+                                {/* Preset Cepat Ukuran */}
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  {fontCfg.quickSizes.map((qs) => (
+                                    <button
+                                      key={`qs-${elemKey}-${qs}`}
+                                      type="button"
+                                      onClick={() => updateElementFontSize(fontCfg.field, qs, fontCfg.min, fontCfg.max)}
+                                      className={`text-[9.5px] px-1.5 py-0.5 rounded font-mono font-medium transition-all ${
+                                        Math.abs(currentFontSize - qs) < 0.1
+                                          ? 'bg-primary text-primary-foreground font-bold shadow-2xs'
+                                          : 'bg-muted text-muted-foreground hover:text-foreground'
+                                      }`}
+                                    >
+                                      {qs}px
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* JIKA ELEMEN BARCODE: KONTROL TINGGI & LEBAR BATANG */}
+                            {elemKey === 'barcode' && (
+                              <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-2">
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <ScanBarcode className="w-3.5 h-3.5 text-muted-foreground" />
+                                  <span className="text-[11px] font-semibold text-muted-foreground">Tinggi Barcode:</span>
+                                  <span className="font-mono text-xs font-bold text-primary px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20">
+                                    {options.barcodeHeightMm || 10} mm
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 flex-1 max-w-xs">
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="outline"
+                                    disabled={(options.barcodeHeightMm || 10) <= 3}
+                                    onClick={() => setOptions((prev) => ({ ...prev, barcodeHeightMm: Math.max(3, (prev.barcodeHeightMm || 10) - 1) }))}
+                                    className="h-6 w-6 rounded"
+                                    title="-1mm"
+                                  >
+                                    <Minus className="w-3 h-3" />
+                                  </Button>
+                                  <input
+                                    type="range"
+                                    min={3}
+                                    max={35}
+                                    step={0.5}
+                                    value={options.barcodeHeightMm || 10}
+                                    onChange={(e) => setOptions((prev) => ({ ...prev, barcodeHeightMm: Number(e.target.value) }))}
+                                    className="w-full accent-primary h-1 bg-muted rounded appearance-none cursor-pointer"
+                                  />
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="outline"
+                                    disabled={(options.barcodeHeightMm || 10) >= 35}
+                                    onClick={() => setOptions((prev) => ({ ...prev, barcodeHeightMm: Math.min(35, (prev.barcodeHeightMm || 10) + 1) }))}
+                                    className="h-6 w-6 rounded"
+                                    title="+1mm"
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                  </Button>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span className="text-[11px] text-muted-foreground">Lebar Area:</span>
+                                  <span className="font-mono text-xs font-bold">{options.barcodeAreaWidthPercent || 90}%</span>
+                                  <input
+                                    type="range"
+                                    min={50}
+                                    max={100}
+                                    step={1}
+                                    value={options.barcodeAreaWidthPercent || 90}
+                                    onChange={(e) => setOptions((prev) => ({ ...prev, barcodeAreaWidthPercent: Number(e.target.value) }))}
+                                    className="w-16 accent-primary h-1 bg-muted rounded cursor-pointer"
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Opsi Ekstra Spesifik per Elemen */}
+                            {elemKey === 'productName' && (
+                              <div className="flex items-center gap-1 shrink-0 pt-1 sm:pt-0">
+                                <span className="text-[10.5px] text-muted-foreground mr-1">Baris:</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setOptions((prev) => ({ ...prev, productNameTwoLines: false }))}
+                                  className={`text-[10px] px-2 py-0.5 rounded font-semibold transition-all border ${
+                                    !options.productNameTwoLines ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted text-muted-foreground'
+                                  }`}
+                                >
+                                  1 Baris
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setOptions((prev) => ({ ...prev, productNameTwoLines: true }))}
+                                  className={`text-[10px] px-2 py-0.5 rounded font-semibold transition-all border ${
+                                    options.productNameTwoLines ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted text-muted-foreground'
+                                  }`}
+                                >
+                                  2 Baris (Wrap)
+                                </button>
+                              </div>
+                            )}
+
+                            {elemKey === 'storeName' && (
+                              <div className="flex items-center gap-1.5 shrink-0 pt-1 sm:pt-0">
+                                <span className="text-[10.5px] text-muted-foreground">Teks:</span>
+                                <input
+                                  type="text"
+                                  value={options.customStoreName !== undefined ? options.customStoreName : defaultBusinessName}
+                                  onChange={(e) => setOptions((prev) => ({ ...prev, customStoreName: e.target.value }))}
+                                  placeholder={defaultBusinessName}
+                                  className="h-6 text-[11px] font-semibold px-2 rounded border bg-background w-32"
+                                />
+                              </div>
+                            )}
+
+                            {elemKey === 'barcode' && (
+                              <div className="flex items-center gap-1 shrink-0 pt-1 sm:pt-0">
+                                <span className="text-[10.5px] text-muted-foreground">Format:</span>
+                                <select
+                                  value={options.barcodeType || 'CODE128'}
+                                  onChange={(e) => setOptions((prev) => ({ ...prev, barcodeType: e.target.value as any }))}
+                                  className="h-6 text-[10.5px] rounded border bg-background px-1 font-mono font-bold"
+                                >
+                                  <option value="CODE128">CODE128</option>
+                                  <option value="EAN13">EAN-13</option>
+                                  <option value="EAN8">EAN-8</option>
+                                  <option value="UPC">UPC-A</option>
+                                  <option value="CODE39">CODE39</option>
+                                </select>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* D-PAD & KONTROL GESER PRESISI ELEMEN TERPILIH */}
+                <div className="p-3.5 rounded-xl border bg-muted/20 space-y-3 pt-4 mt-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-2">
+                    <div className="flex items-center gap-2">
+                      <Move className="w-4 h-4 text-primary" />
+                      <span className="text-xs font-bold text-foreground">
+                        Kontrol Posisi Geser Presisi: <span className="text-primary font-black">{ELEMENT_CONFIG[selectedElement]?.label}</span>
+                      </span>
+                      <Badge variant="outline" className="font-mono text-[10px]">
+                        Offset: ({((options.elementPositions?.[selectedElement]?.x || 0) > 0 ? `+${options.elementPositions?.[selectedElement]?.x}` : (options.elementPositions?.[selectedElement]?.x || 0))} mm, {((options.elementPositions?.[selectedElement]?.y || 0) > 0 ? `+${options.elementPositions?.[selectedElement]?.y}` : (options.elementPositions?.[selectedElement]?.y || 0))} mm)
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10.5px] text-muted-foreground mr-1">Langkah:</span>
+                      {[0.2, 0.5, 1.0].map((step) => (
+                        <button
+                          key={`step-${step}`}
+                          type="button"
+                          onClick={() => setStepSize(step)}
+                          className={`px-2 py-0.5 rounded text-[10.5px] font-mono font-bold transition-all ${
+                            stepSize === step
+                              ? 'bg-primary text-primary-foreground shadow-2xs'
+                              : 'bg-background hover:bg-muted text-muted-foreground border'
+                          }`}
+                        >
+                          ±{step}mm
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    {/* Visual Directional Pad */}
+                    <div className="flex flex-col items-center gap-1.5 shrink-0 py-1">
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => handleMoveElementOrder(selectedElement, 'up')}
-                        className="h-7 px-2 text-xs font-bold gap-1 rounded-lg"
-                        title="Pindahkan elemen ke atas dalam susunan stiker"
+                        onClick={() => handleNudge(selectedElement, 0, -stepSize)}
+                        className="h-8 w-24 text-xs font-bold gap-1 rounded-xl bg-background shadow-2xs hover:bg-purple-50 hover:text-primary dark:hover:bg-purple-950"
+                        title={`Geser ke Atas ${stepSize} mm`}
                       >
-                        <ChevronUp className="w-3.5 h-3.5" />
-                        <span>Naik</span>
+                        <ArrowUp className="w-3.5 h-3.5" />
+                        <span>Atas</span>
                       </Button>
+
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleNudge(selectedElement, -stepSize, 0)}
+                          className="h-8 w-20 text-xs font-bold gap-1 rounded-xl bg-background shadow-2xs hover:bg-purple-50 hover:text-primary dark:hover:bg-purple-950"
+                          title={`Geser ke Kiri ${stepSize} mm`}
+                        >
+                          <ArrowLeft className="w-3.5 h-3.5" />
+                          <span>Kiri</span>
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleResetElement(selectedElement)}
+                          className="h-8 w-14 text-[10px] font-mono font-bold rounded-xl bg-muted hover:bg-muted/80 shadow-2xs"
+                          title="Kembalikan ke titik awal (0,0)"
+                        >
+                          0, 0
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleNudge(selectedElement, stepSize, 0)}
+                          className="h-8 w-20 text-xs font-bold gap-1 rounded-xl bg-background shadow-2xs hover:bg-purple-50 hover:text-primary dark:hover:bg-purple-950"
+                          title={`Geser ke Kanan ${stepSize} mm`}
+                        >
+                          <span>Kanan</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => handleMoveElementOrder(selectedElement, 'down')}
-                        className="h-7 px-2 text-xs font-bold gap-1 rounded-lg"
-                        title="Pindahkan elemen ke bawah dalam susunan stiker"
+                        onClick={() => handleNudge(selectedElement, 0, stepSize)}
+                        className="h-8 w-24 text-xs font-bold gap-1 rounded-xl bg-background shadow-2xs hover:bg-purple-50 hover:text-primary dark:hover:bg-purple-950"
+                        title={`Geser ke Bawah ${stepSize} mm`}
                       >
-                        <ChevronDown className="w-3.5 h-3.5" />
-                        <span>Turun</span>
+                        <ArrowDown className="w-3.5 h-3.5" />
+                        <span>Bawah</span>
                       </Button>
+                    </div>
+
+                    {/* Numeric Sliders for X & Y */}
+                    <div className="w-full space-y-2.5 flex-1 max-w-md">
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground font-semibold">Geser Horizontal (Sumbu X):</span>
+                          <span className="font-mono font-bold text-foreground">
+                            {((options.elementPositions?.[selectedElement]?.x || 0) > 0 ? `+${options.elementPositions?.[selectedElement]?.x}` : (options.elementPositions?.[selectedElement]?.x || 0))} mm
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 shrink-0"
+                            onClick={() => handleNudge(selectedElement, -0.5, 0)}
+                            title="-0.5 mm (Kiri)"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </Button>
+                          <Slider
+                            value={[options.elementPositions?.[selectedElement]?.x || 0]}
+                            min={-20}
+                            max={20}
+                            step={0.2}
+                            onValueChange={([val]) => handleSetPos(selectedElement, 'x', val)}
+                            className="flex-1"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 shrink-0"
+                            onClick={() => handleNudge(selectedElement, 0.5, 0)}
+                            title="+0.5 mm (Kanan)"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground font-semibold">Geser Vertikal (Sumbu Y):</span>
+                          <span className="font-mono font-bold text-foreground">
+                            {((options.elementPositions?.[selectedElement]?.y || 0) > 0 ? `+${options.elementPositions?.[selectedElement]?.y}` : (options.elementPositions?.[selectedElement]?.y || 0))} mm
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 shrink-0"
+                            onClick={() => handleNudge(selectedElement, 0, -0.5)}
+                            title="-0.5 mm (Atas)"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </Button>
+                          <Slider
+                            value={[options.elementPositions?.[selectedElement]?.y || 0]}
+                            min={-20}
+                            max={20}
+                            step={0.2}
+                            onValueChange={([val]) => handleSetPos(selectedElement, 'y', val)}
+                            className="flex-1"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 shrink-0"
+                            onClick={() => handleNudge(selectedElement, 0, 0.5)}
+                            title="+0.5 mm (Bawah)"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleResetElement(selectedElement)}
+                          className="h-7 text-xs text-muted-foreground hover:text-foreground gap-1 px-2"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Reset Posisi {ELEMENT_CONFIG[selectedElement]?.label}</span>
+                        </Button>
+
+                        <span className="text-[10.5px] text-muted-foreground">
+                          Gunakan drag langsung pada preview stiker untuk geser bebas
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* JIKA ELEMEN BARCODE TERPILIH, TAMPILKAN KONTROL TINGGI & LEBAR LANGSUNG */}
-                {selectedElement === 'barcode' && (
-                  <div className="pt-3 border-t border-dashed space-y-3 bg-muted/40 dark:bg-muted/20 -mx-3.5 -mb-3.5 p-3.5 rounded-b-xl">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                        <SlidersHorizontal className="w-3.5 h-3.5 text-primary" />
-                        <span>Atur Ukuran Garis Barcode Terpilih</span>
-                      </span>
-                      <span className="text-[10.5px] font-mono text-primary font-bold">
-                        Tinggi: {options.barcodeHeightMm || 10}mm | Lebar: {options.barcodeAreaWidthPercent || 90}%
-                      </span>
+                {/* KARTU PENGATURAN TIPOGRAFI & GAYA GLOBAL */}
+                <div className="p-3.5 sm:p-4 rounded-xl border bg-muted/20 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Type className="w-4 h-4 text-primary" />
+                    <h4 className="text-xs font-bold text-foreground">Pengaturan Gaya Tipografi &amp; Batang Barcode Global</h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    {/* Jenis Huruf (Font Family) */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-foreground">Keluarga Font:</Label>
+                      <select
+                        value={options.fontFamily || 'sans-serif'}
+                        onChange={(e) => setOptions((prev) => ({ ...prev, fontFamily: e.target.value }))}
+                        className="w-full h-8 text-xs rounded-lg border bg-background px-2.5 font-medium text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
+                      >
+                        <option value="sans-serif">Sans-Serif (Standar)</option>
+                        <option value="monospace">Monospace (Rapi/Kasir)</option>
+                        <option value="Arial">Arial (Universal)</option>
+                        <option value="Segoe UI">Segoe UI (Modern)</option>
+                        <option value="Roboto">Roboto (Google Font)</option>
+                        <option value="serif">Serif (Klasik)</option>
+                      </select>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-[11px]">
-                          <span className="font-semibold text-muted-foreground">Tinggi Garis:</span>
-                          <span className="font-mono font-bold text-foreground">{options.barcodeHeightMm || 10} mm</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="range"
-                            min={3}
-                            max={35}
-                            step={0.5}
-                            value={options.barcodeHeightMm || 10}
-                            onChange={(e) => {
-                              const val = Number(e.target.value);
-                              setOptions((prev) => ({ ...prev, barcodeHeightMm: val }));
-                            }}
-                            className="w-full accent-primary cursor-pointer h-1.5 bg-muted rounded-lg"
-                          />
-                          <input
-                            type="number"
-                            min={3}
-                            max={35}
-                            step={0.5}
-                            value={options.barcodeHeightMm || 10}
-                            onChange={(e) => {
-                              const val = Math.max(3, Math.min(35, Number(e.target.value) || 3));
-                              setOptions((prev) => ({ ...prev, barcodeHeightMm: val }));
-                            }}
-                            className="w-14 h-6 text-xs font-mono font-bold bg-background text-center rounded border"
-                          />
-                        </div>
-                      </div>
+                    {/* Ketebalan Huruf (Font Weight) */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-foreground">Ketebalan Huruf:</Label>
+                      <select
+                        value={options.fontWeight || '800'}
+                        onChange={(e) => setOptions((prev) => ({ ...prev, fontWeight: e.target.value as any }))}
+                        className="w-full h-8 text-xs rounded-lg border bg-background px-2.5 font-medium text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
+                      >
+                        <option value="normal">Normal (400)</option>
+                        <option value="500">Sedang (500)</option>
+                        <option value="600">Semi Tebal (600)</option>
+                        <option value="bold">Tebal (700)</option>
+                        <option value="800">Ekstra Tebal (800)</option>
+                        <option value="900">Maksimal (900)</option>
+                      </select>
+                    </div>
 
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-[11px]">
-                          <span className="font-semibold text-muted-foreground">Lebar Garis (% Area):</span>
-                          <span className="font-mono font-bold text-foreground">{options.barcodeAreaWidthPercent || 90} %</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="range"
-                            min={50}
-                            max={100}
-                            step={1}
-                            value={options.barcodeAreaWidthPercent || 90}
-                            onChange={(e) => {
-                              const val = Number(e.target.value);
-                              setOptions((prev) => ({ ...prev, barcodeAreaWidthPercent: val }));
-                            }}
-                            className="w-full accent-primary cursor-pointer h-1.5 bg-muted rounded-lg"
-                          />
-                          <input
-                            type="number"
-                            min={50}
-                            max={100}
-                            step={1}
-                            value={options.barcodeAreaWidthPercent || 90}
-                            onChange={(e) => {
-                              const val = Math.max(50, Math.min(100, Number(e.target.value) || 50));
-                              setOptions((prev) => ({ ...prev, barcodeAreaWidthPercent: val }));
-                            }}
-                            className="w-14 h-6 text-xs font-mono font-bold bg-background text-center rounded border"
-                          />
-                        </div>
+                    {/* Perataan Teks (Alignment) */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-foreground">Perataan Teks:</Label>
+                      <div className="grid grid-cols-3 gap-1 bg-background p-0.5 rounded-lg border h-8 items-center">
+                        <button
+                          type="button"
+                          onClick={() => setOptions((prev) => ({ ...prev, textAlign: 'left' }))}
+                          className={`h-full text-xs font-semibold rounded flex items-center justify-center gap-1 transition-all ${
+                            options.textAlign === 'left'
+                              ? 'bg-primary text-primary-foreground font-bold shadow-2xs'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          <AlignLeft className="w-3.5 h-3.5" />
+                          <span>Kiri</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setOptions((prev) => ({ ...prev, textAlign: 'center' }))}
+                          className={`h-full text-xs font-semibold rounded flex items-center justify-center gap-1 transition-all ${
+                            (!options.textAlign || options.textAlign === 'center')
+                              ? 'bg-primary text-primary-foreground font-bold shadow-2xs'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          <AlignCenter className="w-3.5 h-3.5" />
+                          <span>Tengah</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setOptions((prev) => ({ ...prev, textAlign: 'right' }))}
+                          className={`h-full text-xs font-semibold rounded flex items-center justify-center gap-1 transition-all ${
+                            options.textAlign === 'right'
+                              ? 'bg-primary text-primary-foreground font-bold shadow-2xs'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          <AlignCenter className="w-3.5 h-3.5 rotate-180" />
+                          <span>Kanan</span>
+                        </button>
                       </div>
+                    </div>
+
+                    {/* Ketebalan Batang Barcode (Ratio) */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-foreground">Ketebalan Garis Batang:</Label>
+                      <select
+                        value={options.barcodeWidthRatio || 1.0}
+                        onChange={(e) => setOptions((prev) => ({ ...prev, barcodeWidthRatio: Number(e.target.value) }))}
+                        className="w-full h-8 text-xs rounded-lg border bg-background px-2.5 font-medium text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
+                      >
+                        <option value="0.8">0.8x (Tipis / Rapat)</option>
+                        <option value="1.0">1.0x (Normal Standar)</option>
+                        <option value="1.2">1.2x (Sedang / Jelas)</option>
+                        <option value="1.5">1.5x (Tebal)</option>
+                        <option value="2.0">2.0x (Ekstra Tebal)</option>
+                      </select>
                     </div>
                   </div>
-                )}
+                </div>
               </div>
-            </div>
-
-            {/* 3. Daftar Susunan Urutan Elemen Stiker */}
-            <div className="pt-2 border-t space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-semibold text-muted-foreground">Susunan Urutan Vertikal Elemen:</Label>
-                <span className="text-[10.5px] text-primary font-medium">Klik chip untuk memilih elemen</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5 items-center">
-                {(options.elementOrder || DEFAULT_LABEL_ELEMENT_ORDER).map((key, index) => {
-                  const isSelected = selectedElement === key;
-                  const pos = options.elementPositions?.[key] || { x: 0, y: 0 };
-                  const conf = ELEMENT_CONFIG[key];
-                  if (!conf) return null;
-                  return (
-                    <button
-                      key={`order-chip-${key}`}
-                      type="button"
-                      onClick={() => setSelectedElement(key)}
-                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs font-semibold transition-all ${
-                        isSelected
-                          ? 'bg-primary text-primary-foreground border-primary shadow-2xs'
-                          : 'bg-background hover:bg-muted text-foreground'
-                      }`}
-                    >
-                      <span className="font-mono text-[10px] opacity-75">{index + 1}.</span>
-                      <span>{conf.label}</span>
-                      {(pos.x !== 0 || pos.y !== 0) && (
-                        <span className="text-[9px] font-mono opacity-80">
-                          ({pos.x > 0 ? `+${pos.x}` : pos.x},{pos.y > 0 ? `+${pos.y}` : pos.y})
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            </div>
             )}
           </div>
 
-          {/* D. ANTREAN PRODUK DARI DATABASE NYATA */}
+          {/* C. DAFTAR PRODUK YANG DICETAK */}
           <div className="bg-card text-card-foreground rounded-2xl border shadow-xs overflow-hidden transition-all">
             <button
               type="button"
@@ -2344,7 +2305,7 @@ export function BarcodeConfigView({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-foreground tracking-tight">
-                    D. Daftar Produk yang Dicetak
+                    C. Daftar Produk yang Dicetak
                   </h3>
                   <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                     Pilih produk dari inventori dan tentukan jumlah lembar stiker.
