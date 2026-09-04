@@ -33,6 +33,7 @@ func (h *StoreHandler) RegisterRoutes(r *gin.RouterGroup) {
 		storeAuth.GET("/point-history", middleware.AuthenticateStoreCustomer(), h.GetCustomerPointHistory)
 		storeAuth.PUT("/profile", middleware.AuthenticateStoreCustomer(), h.UpdateCustomerProfile)
 		storeAuth.POST("/change-password", middleware.AuthenticateStoreCustomer(), h.ChangeCustomerPassword)
+		storeAuth.POST("/google", middleware.LoginRateLimit(), h.GoogleCustomerAuth)
 	}
 	r.GET("/store/customer/point-history", middleware.AuthenticateStoreCustomer(), h.GetCustomerPointHistory)
 
@@ -459,6 +460,94 @@ func (h *StoreHandler) ChangeCustomerPassword(c *gin.Context) {
 	_, _ = database.DB.Exec("UPDATE store_customers SET password = $1 WHERE id = $2", newHash, cust.ID)
 
 	utils.RespondSuccess(c, "Password berhasil diubah", gin.H{"success": true})
+}
+
+func (h *StoreHandler) GoogleCustomerAuth(c *gin.Context) {
+	var req struct {
+		Credential string `json:"credential"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Credential) == "" {
+		utils.RespondValidationError(c, "Token credential Google wajib diisi")
+		return
+	}
+
+	// Fetch google_auth_settings
+	var cfg struct {
+		ClientID         string `db:"client_id"`
+		IsEnabled        bool   `db:"is_enabled"`
+		EnableStorefront bool   `db:"enable_storefront"`
+	}
+	err := database.DB.Get(&cfg, "SELECT COALESCE(client_id, '') as client_id, COALESCE(is_enabled, false) as is_enabled, COALESCE(enable_storefront, true) as enable_storefront FROM google_auth_settings LIMIT 1")
+	if err != nil || !cfg.IsEnabled || !cfg.EnableStorefront {
+		utils.RespondError(c, http.StatusForbidden, "Login Google untuk Toko Online sedang dinonaktifkan")
+		return
+	}
+
+	// Verify token with Google
+	payload, err := utils.VerifyGoogleIDToken(req.Credential, cfg.ClientID)
+	if err != nil {
+		utils.RespondError(c, http.StatusUnauthorized, "Gagal memverifikasi akun Google: "+err.Error())
+		return
+	}
+
+	googleEmail := strings.ToLower(strings.TrimSpace(payload.Email))
+	googleName := strings.TrimSpace(payload.Name)
+	if googleName == "" {
+		googleName = "Pelanggan Google"
+	}
+
+	var cust StoreCustomer
+	err = database.DB.Get(&cust, "SELECT id, name, email, password, phone, address, is_active, created_at FROM store_customers WHERE LOWER(TRIM(email)) = $1", googleEmail)
+	if err != nil {
+		// New customer, auto-register
+		newID := utils.GenerateUUID()
+		randomPassword, _ := utils.HashPassword(utils.GenerateUUID() + time.Now().String())
+
+		_, insertErr := database.DB.Exec(`
+			INSERT INTO store_customers (id, name, email, password, is_active, google_id, avatar_url, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, true, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		`, newID, googleName, googleEmail, randomPassword, payload.Sub, payload.Picture)
+
+		if insertErr != nil {
+			utils.RespondError(c, http.StatusInternalServerError, "Gagal mendaftarkan akun Google: "+insertErr.Error())
+			return
+		}
+
+		_ = database.DB.Get(&cust, "SELECT id, name, email, password, phone, address, is_active, created_at FROM store_customers WHERE id = $1", newID)
+	} else {
+		// Existing customer, update google_id and avatar_url if needed
+		_, _ = database.DB.Exec(`
+			UPDATE store_customers 
+			SET google_id = COALESCE(NULLIF(google_id, ''), $1),
+			    avatar_url = COALESCE(NULLIF(avatar_url, ''), $2),
+			    updated_at = CURRENT_TIMESTAMP
+			WHERE id = $3
+		`, payload.Sub, payload.Picture, cust.ID)
+	}
+
+	token, _ := utils.GenerateStoreCustomerJWT(cust.ID, cust.Email, cust.Name, "", config.AppConfig.JWTSecret)
+
+	phone := ""
+	if cust.Phone != nil {
+		phone = *cust.Phone
+	}
+	address := ""
+	if cust.Address != nil {
+		address = *cust.Address
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"token": token,
+		"customer": gin.H{
+			"id":         cust.ID,
+			"name":       cust.Name,
+			"email":      cust.Email,
+			"phone":      phone,
+			"address":    address,
+			"avatar_url": payload.Picture,
+		},
+	})
 }
 
 // -------------------------------------------------------------

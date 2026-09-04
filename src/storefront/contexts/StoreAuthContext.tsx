@@ -19,6 +19,7 @@ export interface StoreAuthContextType {
     isLoading: boolean;
     isLoggedIn: boolean;
     login: (email: string, password: string) => Promise<{ error: Error | null }>;
+    loginWithGoogle: (credential: string) => Promise<{ error: Error | null }>;
     register: (data: RegisterData) => Promise<{ error: Error | null }>;
     logout: () => void;
     updateProfile: (data: Partial<StoreCustomer>) => Promise<{ error: Error | null }>;
@@ -84,6 +85,18 @@ export const StoreAuthProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
+    const loginWithGoogle = async (credential: string) => {
+        try {
+            const response = await api.post('/store/auth/google', { credential });
+            const data = response.data;
+            localStorage.setItem('store_customer_token', data.token);
+            setCustomer(data.customer);
+            return { error: null };
+        } catch (error: any) {
+            return { error: new Error(error.response?.data?.error || error.message || 'Login Google gagal') };
+        }
+    };
+
     const register = async (registerData: RegisterData) => {
         try {
             const response = await api.post('/store/auth/register', registerData);
@@ -133,6 +146,7 @@ export const StoreAuthProvider = ({ children }: { children: ReactNode }) => {
                 isLoading,
                 isLoggedIn,
                 login,
+                loginWithGoogle,
                 register,
                 logout,
                 updateProfile,

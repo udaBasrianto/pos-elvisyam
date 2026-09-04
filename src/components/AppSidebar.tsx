@@ -34,6 +34,7 @@ import {
   UserCheck,
   Lightbulb,
   ScanBarcode,
+  Chrome,
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -115,6 +116,7 @@ export function AppSidebar() {
     { title: "Manajemen Token", url: "/dashboard?tab=tokens", icon: Key },
     { title: "Konfigurasi SMTP", url: "/dashboard?tab=smtp", icon: Mail },
     { title: "Konfigurasi AI", url: "/dashboard?tab=ai", icon: Sparkles },
+    { title: "Login Google (OAuth)", url: "/dashboard?tab=google-auth", icon: Chrome },
     { title: "Landing Page CMS", url: "/dashboard?tab=landing", icon: Globe },
   ];
 

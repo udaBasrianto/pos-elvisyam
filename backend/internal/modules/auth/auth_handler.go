@@ -40,6 +40,8 @@ func (h *AuthHandler) RegisterRoutes(r *gin.RouterGroup) {
 		auth.POST("/verify-password", middleware.AuthenticateToken(), h.VerifyPassword)
 		auth.GET("/demo-info", h.GetDemoInfo)
 		auth.GET("/branding", h.GetBranding)
+		auth.GET("/google-config", h.GetGoogleConfig)
+		auth.POST("/google", middleware.LoginRateLimit(), h.GoogleSignIn)
 
 		// Registration tokens (super_admin)
 		auth.GET("/registration-tokens", middleware.AuthenticateToken(), middleware.RequireRole("super_admin"), h.GetRegistrationTokens)
@@ -712,3 +714,133 @@ func (h *AuthHandler) TestTransactions(c *gin.Context) {
 		"transaction_count": count,
 	})
 }
+
+func (h *AuthHandler) GetGoogleConfig(c *gin.Context) {
+	var cfg struct {
+		ClientID         string `db:"client_id"`
+		IsEnabled        bool   `db:"is_enabled"`
+		EnableStorefront bool   `db:"enable_storefront"`
+		EnablePOS        bool   `db:"enable_pos"`
+	}
+
+	err := database.DB.Get(&cfg, `
+		SELECT COALESCE(client_id, '') as client_id,
+		       COALESCE(is_enabled, false) as is_enabled,
+		       COALESCE(enable_storefront, true) as enable_storefront,
+		       COALESCE(enable_pos, true) as enable_pos
+		FROM google_auth_settings
+		LIMIT 1
+	`)
+
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"is_enabled":        false,
+			"client_id":         "",
+			"enable_storefront": false,
+			"enable_pos":        false,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"is_enabled":        cfg.IsEnabled,
+		"client_id":         cfg.ClientID,
+		"enable_storefront": cfg.EnableStorefront,
+		"enable_pos":        cfg.EnablePOS,
+	})
+}
+
+func (h *AuthHandler) GoogleSignIn(c *gin.Context) {
+	var req struct {
+		Credential string `json:"credential"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Credential) == "" {
+		utils.RespondValidationError(c, "Token credential Google wajib diisi")
+		return
+	}
+
+	// Fetch google_auth_settings
+	var cfg struct {
+		ClientID  string `db:"client_id"`
+		IsEnabled bool   `db:"is_enabled"`
+		EnablePOS bool   `db:"enable_pos"`
+	}
+	err := database.DB.Get(&cfg, "SELECT COALESCE(client_id, '') as client_id, COALESCE(is_enabled, false) as is_enabled, COALESCE(enable_pos, true) as enable_pos FROM google_auth_settings LIMIT 1")
+	if err != nil || !cfg.IsEnabled || !cfg.EnablePOS {
+		utils.RespondError(c, http.StatusForbidden, "Login Google untuk aplikasi POS sedang dinonaktifkan oleh administrator")
+		return
+	}
+
+	// Verify token with Google
+	payload, err := utils.VerifyGoogleIDToken(req.Credential, cfg.ClientID)
+	if err != nil {
+		utils.RespondError(c, http.StatusUnauthorized, "Gagal memverifikasi akun Google: "+err.Error())
+		return
+	}
+
+	googleEmail := strings.ToLower(strings.TrimSpace(payload.Email))
+
+	var user struct {
+		ID        string         `db:"id"`
+		Email     string         `db:"email"`
+		FullName  sql.NullString `db:"full_name"`
+		Role      string         `db:"role"`
+		TenantID  sql.NullString `db:"tenant_id"`
+		ShopSlug  sql.NullString `db:"shop_slug"`
+		AvatarURL sql.NullString `db:"avatar_url"`
+	}
+
+	err = database.DB.Get(&user, `
+		SELECT id, email, full_name, role, tenant_id, shop_slug, avatar_url 
+		FROM users 
+		WHERE LOWER(TRIM(email)) = $1
+		LIMIT 1
+	`, googleEmail)
+
+	if err != nil {
+		utils.RespondError(c, http.StatusNotFound, fmt.Sprintf("Akun Google (%s) belum terdaftar di sistem POS. Silakan hubungi Super Admin atau gunakan email yang terdaftar.", googleEmail))
+		return
+	}
+
+	// Optionally update google_id and avatar if empty
+	_, _ = database.DB.Exec(`
+		UPDATE users 
+		SET google_id = COALESCE(NULLIF(google_id, ''), $1),
+		    avatar_url = COALESCE(NULLIF(avatar_url, ''), $2),
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE id = $3
+	`, payload.Sub, payload.Picture, user.ID)
+
+	tenantID := user.TenantID.String
+	if tenantID == "" {
+		tenantID = user.ID
+	}
+
+	fullNameVal := "User"
+	if user.FullName.Valid && user.FullName.String != "" {
+		fullNameVal = user.FullName.String
+	} else if payload.Name != "" {
+		fullNameVal = payload.Name
+	}
+
+	token, err := utils.GenerateJWT(user.ID, user.Email, user.Role, tenantID, config.AppConfig.JWTSecret)
+	if err != nil {
+		utils.RespondError(c, http.StatusInternalServerError, "Gagal membuat token login")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"token": token,
+		"user": gin.H{
+			"id":        user.ID,
+			"email":     user.Email,
+			"full_name": fullNameVal,
+			"role":      user.Role,
+			"tenant_id": tenantID,
+			"shop_slug": user.ShopSlug.String,
+			"avatar":    payload.Picture,
+		},
+	})
+}
+

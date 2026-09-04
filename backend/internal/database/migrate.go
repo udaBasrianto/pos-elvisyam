@@ -1370,6 +1370,22 @@ func AutoMigrate(db *sqlx.DB) error {
 		`CREATE INDEX IF NOT EXISTS idx_sub_categories_cat ON sub_categories(category_id)`,
 		`ALTER TABLE products ADD COLUMN IF NOT EXISTS sub_category_id VARCHAR(36)`,
 		`CREATE INDEX IF NOT EXISTS idx_products_sub_category_id ON products(sub_category_id)`,
+
+		// Google OAuth Settings & user associations
+		`CREATE TABLE IF NOT EXISTS google_auth_settings (
+			id                VARCHAR(36) PRIMARY KEY,
+			client_id         TEXT DEFAULT '',
+			client_secret     TEXT DEFAULT '',
+			is_enabled        BOOLEAN DEFAULT FALSE,
+			enable_storefront BOOLEAN DEFAULT TRUE,
+			enable_pos        BOOLEAN DEFAULT TRUE,
+			created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`ALTER TABLE store_customers ADD COLUMN IF NOT EXISTS google_id VARCHAR(100)`,
+		`ALTER TABLE store_customers ADD COLUMN IF NOT EXISTS avatar_url TEXT`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(100)`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT`,
 	}
 
 	for _, q := range queries {

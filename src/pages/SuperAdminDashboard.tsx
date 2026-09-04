@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { StatCard } from "@/components/ui/kpi-card";
@@ -43,7 +44,11 @@ import {
     X,
     Check,
     RefreshCw,
-    ExternalLink
+    ExternalLink,
+    Chrome,
+    Eye,
+    EyeOff,
+    CheckCircle2
 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
@@ -208,6 +213,19 @@ const SuperAdminDashboard = () => {
     const openRouterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [isSavingAi, setIsSavingAi] = useState(false);
 
+    // Google Auth Settings State
+    const [googleSettings, setGoogleSettings] = useState({
+        client_id: "",
+        client_secret: "",
+        is_enabled: false,
+        enable_storefront: true,
+        enable_pos: true
+    });
+    const [isSavingGoogle, setIsSavingGoogle] = useState(false);
+    const [showGoogleSecret, setShowGoogleSecret] = useState(false);
+    const [copiedOrigin, setCopiedOrigin] = useState(false);
+    const [copiedRedirect, setCopiedRedirect] = useState(false);
+
     // Tenant details & filters state
     const [dateFilter, setDateFilter] = useState("all_time");
     const [searchTenant, setSearchTenant] = useState("");
@@ -299,6 +317,22 @@ const SuperAdminDashboard = () => {
                 }
             } catch (e) {
                 console.error('Error loading AI settings:', e);
+            }
+
+            // Load Google Auth Settings
+            try {
+                const googleRes = await api.get('/admin/google-auth-settings');
+                if (googleRes.data) {
+                    setGoogleSettings({
+                        client_id: googleRes.data.client_id || '',
+                        client_secret: googleRes.data.client_secret || '',
+                        is_enabled: googleRes.data.is_enabled === true,
+                        enable_storefront: googleRes.data.enable_storefront !== false,
+                        enable_pos: googleRes.data.enable_pos !== false
+                    });
+                }
+            } catch (e) {
+                console.error('Error loading Google settings:', e);
             }
 
             // Load Pillars
@@ -495,6 +529,41 @@ const SuperAdminDashboard = () => {
         } finally {
             setIsSavingAi(false);
         }
+    };
+
+    const handleSaveGoogle = async () => {
+        if (googleSettings.is_enabled && !googleSettings.client_id.trim()) {
+            toast.error("Google Client ID wajib diisi jika status diaktifkan");
+            return;
+        }
+
+        setIsSavingGoogle(true);
+        try {
+            await api.put('/admin/google-auth-settings', googleSettings);
+            toast.success("Konfigurasi Google Auth berhasil disimpan!");
+            fetchData();
+        } catch (error: any) {
+            console.error("Error saving Google settings:", error);
+            toast.error(error.response?.data?.error || "Gagal menyimpan konfigurasi Google Auth");
+        } finally {
+            setIsSavingGoogle(false);
+        }
+    };
+
+    const handleCopyOrigin = () => {
+        const origin = window.location.origin;
+        navigator.clipboard.writeText(origin);
+        setCopiedOrigin(true);
+        toast.success("URL Origin disalin ke clipboard!");
+        setTimeout(() => setCopiedOrigin(false), 2000);
+    };
+
+    const handleCopyRedirect = () => {
+        const origin = window.location.origin;
+        navigator.clipboard.writeText(origin);
+        setCopiedRedirect(true);
+        toast.success("Redirect URI disalin ke clipboard!");
+        setTimeout(() => setCopiedRedirect(false), 2000);
     };
 
     const handleTestEmail = async () => {
@@ -1458,6 +1527,291 @@ const SuperAdminDashboard = () => {
                                 </p>
                             </CardContent>
                         </Card>
+                    </div>
+                </TabsContent>
+
+                {/* GOOGLE AUTH TAB */}
+                <TabsContent value="google-auth">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        {/* Kolom Kiri: Form Konfigurasi Google Client ID (7 Cols) */}
+                        <div className="lg:col-span-7 space-y-5">
+                            <Card className="border-0 shadow-md">
+                                <CardHeader className="pb-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-red-500 to-amber-500 flex items-center justify-center shadow-sm">
+                                                <Chrome className="w-5 h-5 text-white" />
+                                            </div>
+                                            <div>
+                                                <CardTitle className="text-lg font-bold">Konfigurasi Login Google (OAuth 2.0)</CardTitle>
+                                                <CardDescription className="text-xs">
+                                                    Atur Google Client ID agar pelanggan toko online dan staf dapat masuk dengan akun Google 1-klik.
+                                                </CardDescription>
+                                            </div>
+                                        </div>
+                                        <Badge
+                                            className={googleSettings.is_enabled && googleSettings.client_id ? "bg-emerald-500 hover:bg-emerald-600 text-white" : "bg-muted text-muted-foreground"}
+                                        >
+                                            {googleSettings.is_enabled && googleSettings.client_id ? "Aktif" : "Nonaktif"}
+                                        </Badge>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="space-y-5">
+                                    {/* Status Card Notice */}
+                                    {googleSettings.is_enabled && googleSettings.client_id ? (
+                                        <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 flex items-start gap-3">
+                                            <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                                            <div className="text-xs">
+                                                <p className="font-semibold text-emerald-800 dark:text-emerald-300">Integrasi Google Sign-In Sedang Aktif</p>
+                                                <p className="text-emerald-700/90 dark:text-emerald-400/90 mt-0.5">
+                                                    Tombol &quot;Masuk dengan Google&quot; ditampilkan pada halaman login sesuai target yang Anda aktifkan di bawah.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 flex items-start gap-3">
+                                            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                                            <div className="text-xs">
+                                                <p className="font-semibold text-amber-800 dark:text-amber-300">Login Google Belum Aktif</p>
+                                                <p className="text-amber-700/90 dark:text-amber-400/90 mt-0.5">
+                                                    Masukkan Google Client ID Anda di bawah ini dan aktifkan sakelar untuk mulai menggunakan fitur ini.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Form Fields */}
+                                    <div className="space-y-4">
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="google_client_id" className="text-xs font-semibold flex items-center gap-1.5">
+                                                Google Client ID <span className="text-destructive">*</span>
+                                            </Label>
+                                            <Input
+                                                id="google_client_id"
+                                                placeholder="Contoh: 123456789-abcdefghijk.apps.googleusercontent.com"
+                                                value={googleSettings.client_id}
+                                                onChange={(e) => setGoogleSettings({ ...googleSettings, client_id: e.target.value.trim() })}
+                                                className="font-mono text-xs h-10"
+                                            />
+                                            <p className="text-[11px] text-muted-foreground">
+                                                Dapatkan dari <strong>Google Cloud Console &gt; Credentials &gt; OAuth 2.0 Client IDs</strong>.
+                                            </p>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <Label htmlFor="google_client_secret" className="text-xs font-semibold">
+                                                    Google Client Secret <span className="text-muted-foreground font-normal">(Opsional)</span>
+                                                </Label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowGoogleSecret(!showGoogleSecret)}
+                                                    className="text-[11px] text-primary hover:underline flex items-center gap-1"
+                                                >
+                                                    {showGoogleSecret ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                                                    {showGoogleSecret ? "Sembunyikan" : "Tampilkan"}
+                                                </button>
+                                            </div>
+                                            <Input
+                                                id="google_client_secret"
+                                                type={showGoogleSecret ? "text" : "password"}
+                                                placeholder="GOCSPX-xxxxxxxxxxxxxxxxxxxxxxxx"
+                                                value={googleSettings.client_secret}
+                                                onChange={(e) => setGoogleSettings({ ...googleSettings, client_secret: e.target.value.trim() })}
+                                                className="font-mono text-xs h-10"
+                                            />
+                                        </div>
+
+                                        <div className="pt-2 pb-1 border-t space-y-3">
+                                            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                                Pengaturan Visibilitas & Sakelar
+                                            </p>
+
+                                            {/* Global Enable Toggle */}
+                                            <div className="flex items-center justify-between p-3 rounded-xl border bg-card/60">
+                                                <div className="space-y-0.5">
+                                                    <Label htmlFor="google_is_enabled" className="text-xs font-bold cursor-pointer">
+                                                        Aktifkan Login Google Global
+                                                    </Label>
+                                                    <p className="text-[11px] text-muted-foreground">
+                                                        Nyalakan sakelar ini agar integrasi Google Sign-In dapat digunakan di sistem.
+                                                    </p>
+                                                </div>
+                                                <Switch
+                                                    id="google_is_enabled"
+                                                    checked={googleSettings.is_enabled}
+                                                    onCheckedChange={(checked) => setGoogleSettings({ ...googleSettings, is_enabled: checked })}
+                                                />
+                                            </div>
+
+                                            {/* Storefront Toggle */}
+                                            <div className="flex items-center justify-between p-3 rounded-xl border bg-card/60">
+                                                <div className="space-y-0.5">
+                                                    <Label htmlFor="google_storefront" className="text-xs font-semibold cursor-pointer flex items-center gap-1.5">
+                                                        <Store className="w-3.5 h-3.5 text-blue-600" />
+                                                        Tampilkan di Toko Online (Storefront)
+                                                    </Label>
+                                                    <p className="text-[11px] text-muted-foreground">
+                                                        Pelanggan dapat langsung belanja atau mendaftar akun dengan 1-klik akun Google.
+                                                    </p>
+                                                </div>
+                                                <Switch
+                                                    id="google_storefront"
+                                                    checked={googleSettings.enable_storefront}
+                                                    disabled={!googleSettings.is_enabled}
+                                                    onCheckedChange={(checked) => setGoogleSettings({ ...googleSettings, enable_storefront: checked })}
+                                                />
+                                            </div>
+
+                                            {/* POS App Toggle */}
+                                            <div className="flex items-center justify-between p-3 rounded-xl border bg-card/60">
+                                                <div className="space-y-0.5">
+                                                    <Label htmlFor="google_pos" className="text-xs font-semibold cursor-pointer flex items-center gap-1.5">
+                                                        <Users className="w-3.5 h-3.5 text-emerald-600" />
+                                                        Tampilkan di Login POS / Dashboard
+                                                    </Label>
+                                                    <p className="text-[11px] text-muted-foreground">
+                                                        Admin toko atau kasir yang email Google-nya sudah terdaftar dapat login instan.
+                                                    </p>
+                                                </div>
+                                                <Switch
+                                                    id="google_pos"
+                                                    checked={googleSettings.enable_pos}
+                                                    disabled={!googleSettings.is_enabled}
+                                                    onCheckedChange={(checked) => setGoogleSettings({ ...googleSettings, enable_pos: checked })}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <Button
+                                        onClick={handleSaveGoogle}
+                                        disabled={isSavingGoogle}
+                                        className="w-full gap-2 font-semibold shadow-xs"
+                                    >
+                                        {isSavingGoogle ? (
+                                            <><Loader2 className="w-4 h-4 animate-spin" /> Menyimpan Konfigurasi...</>
+                                        ) : (
+                                            <><Save className="w-4 h-4" /> Simpan Pengaturan Google OAuth</>
+                                        )}
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        {/* Kolom Kanan: Panduan Setup Google Cloud & Pratinjau (5 Cols) */}
+                        <div className="lg:col-span-5 space-y-5">
+                            {/* Copy Helpers Card */}
+                            <Card className="border-0 shadow-md">
+                                <CardHeader className="pb-3">
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="text-sm font-bold flex items-center gap-2">
+                                            <Globe className="w-4 h-4 text-blue-600" />
+                                            Data untuk Google Cloud Console
+                                        </CardTitle>
+                                        <a
+                                            href="https://console.cloud.google.com/apis/credentials"
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-[11px] text-primary hover:underline flex items-center gap-1 font-semibold"
+                                        >
+                                            Buka Console <ExternalLink className="w-3 h-3" />
+                                        </a>
+                                    </div>
+                                    <CardDescription className="text-xs">
+                                        Salin parameter URL berikut saat mendaftarkan Web Application di Google Cloud:
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-3.5">
+                                    <div className="space-y-1">
+                                        <div className="flex items-center justify-between text-xs">
+                                            <span className="font-semibold text-muted-foreground">Authorized JavaScript Origins:</span>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={handleCopyOrigin}
+                                                className="h-6 px-2 text-[11px] gap-1 text-primary hover:bg-primary/10"
+                                            >
+                                                {copiedOrigin ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                                                {copiedOrigin ? "Disalin!" : "Salin"}
+                                            </Button>
+                                        </div>
+                                        <div className="p-2.5 bg-muted/60 rounded-xl font-mono text-[11px] break-all border select-all">
+                                            {window.location.origin}
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <div className="flex items-center justify-between text-xs">
+                                            <span className="font-semibold text-muted-foreground">Authorized Redirect URIs:</span>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={handleCopyRedirect}
+                                                className="h-6 px-2 text-[11px] gap-1 text-primary hover:bg-primary/10"
+                                            >
+                                                {copiedRedirect ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                                                {copiedRedirect ? "Disalin!" : "Salin"}
+                                            </Button>
+                                        </div>
+                                        <div className="p-2.5 bg-muted/60 rounded-xl font-mono text-[11px] break-all border select-all">
+                                            {window.location.origin}
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Step-by-Step Guide Card */}
+                            <Card className="border-0 shadow-md">
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-bold flex items-center gap-2">
+                                        <Lightbulb className="w-4 h-4 text-amber-500" />
+                                        Panduan Cepat 4 Langkah
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-2.5 text-xs text-muted-foreground">
+                                    <div className="flex gap-2.5 items-start">
+                                        <span className="w-5 h-5 rounded-full bg-primary/10 text-primary font-bold text-[11px] flex items-center justify-center shrink-0">1</span>
+                                        <p>Buka <strong>Google Cloud Console</strong> &gt; pilih / buat project baru &gt; masuk ke menu <strong>APIs & Services &gt; Credentials</strong>.</p>
+                                    </div>
+                                    <div className="flex gap-2.5 items-start">
+                                        <span className="w-5 h-5 rounded-full bg-primary/10 text-primary font-bold text-[11px] flex items-center justify-center shrink-0">2</span>
+                                        <p>Klik <strong>+ Create Credentials</strong> &gt; pilih <strong>OAuth client ID</strong> &gt; Application type: <strong>Web application</strong>.</p>
+                                    </div>
+                                    <div className="flex gap-2.5 items-start">
+                                        <span className="w-5 h-5 rounded-full bg-primary/10 text-primary font-bold text-[11px] flex items-center justify-center shrink-0">3</span>
+                                        <p>Tempelkan URL dari kotak di atas ke bagian <strong>Authorized JavaScript origins</strong> dan <strong>Authorized redirect URIs</strong>, lalu klik <strong>Create</strong>.</p>
+                                    </div>
+                                    <div className="flex gap-2.5 items-start">
+                                        <span className="w-5 h-5 rounded-full bg-primary/10 text-primary font-bold text-[11px] flex items-center justify-center shrink-0">4</span>
+                                        <p>Salin <strong>Client ID</strong> yang didapat, tempelkan ke kolom form di samping kiri, nyalakan sakelar lalu klik <strong>Simpan</strong>. Selesai!</p>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Live Preview Simulator */}
+                            <Card className="border-0 shadow-md bg-gradient-to-br from-card to-muted/20">
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                        Pratinjau Tampilan Tombol di Toko
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                    <div className="p-4 rounded-xl border bg-background text-center space-y-2.5">
+                                        <p className="text-[11px] text-muted-foreground">Simulasi tombol login pelanggan:</p>
+                                        <div className="w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-xl border border-input bg-card shadow-xs text-xs font-semibold text-foreground hover:bg-accent transition-all cursor-pointer">
+                                            <svg className="w-4 h-4" viewBox="0 0 24 24">
+                                                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+                                                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z"/>
+                                                <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+                                                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+                                            </svg>
+                                            Lanjutkan dengan Google
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
                     </div>
                 </TabsContent>
 

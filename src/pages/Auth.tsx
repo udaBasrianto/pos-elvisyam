@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { Store, Loader2, Mail, Lock, User, Key, ArrowLeft, Send, Sparkles, Play } from 'lucide-react';
 import { z } from 'zod';
 import api from '@/lib/api';
+import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 
 const loginSchema = z.object({
   email: z.string().email('Email tidak valid'),
@@ -53,6 +54,26 @@ export default function Auth() {
 
   const [demoInfo, setDemoInfo] = useState<{ enabled: boolean; email: string; password: string; title?: string; description?: string } | null>(null);
   const [branding, setBranding] = useState<{ business_name?: string; business_logo?: string; logo_url?: string; description?: string; auth_background?: string } | null>(null);
+
+  const handleGoogleSuccess = async (credential: string) => {
+    setIsLoading(true);
+    try {
+      const res = await api.post('/auth/google', { credential });
+      if (res.data?.token) {
+        localStorage.setItem('pos_token', res.data.token);
+        localStorage.setItem('token', res.data.token);
+        if (res.data.user) {
+          localStorage.setItem('pos_user', JSON.stringify(res.data.user));
+        }
+        toast.success(`Selamat datang, ${res.data.user?.full_name || 'User'}!`);
+        window.location.href = '/dashboard';
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Gagal login dengan Google');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     // Fetch demo info
@@ -262,7 +283,17 @@ export default function Auth() {
 
             <TabsContent value="login">
               {!showOtpInput ? (
-                <form onSubmit={handleLogin} className="space-y-4">
+                <>
+                  <GoogleSignInButton
+                    target="pos"
+                    buttonText="signin_with"
+                    showDivider={true}
+                    dividerText="Atau masuk dengan akun POS"
+                    disabled={isLoading}
+                    onSuccess={handleGoogleSuccess}
+                    className="mb-4"
+                  />
+                  <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="login-email">Email</Label>
                     <div className="relative">
@@ -333,6 +364,7 @@ export default function Auth() {
                     </div>
                   )}
                 </form>
+                </>
               ) : (
                 <form onSubmit={handleVerifyOtp} className="space-y-4">
                   <div className="bg-primary/10 p-4 rounded-lg text-center mb-4">

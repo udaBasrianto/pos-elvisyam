@@ -8,9 +8,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useStoreAuth } from '../contexts/StoreAuthContext';
-import { StoreSeoHead } from '../components/StoreSeoHead';
 import { toast } from 'sonner';
 import { getCustomDomainInfo } from '@/utils/domain';
+import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 
 export const StoreAuth = () => {
     const { slug } = useParams<{ slug: string }>();
@@ -20,8 +20,21 @@ export const StoreAuth = () => {
     const basePath = customDomainInfo.isCustomDomain
         ? ''
         : (location.pathname.startsWith('/s/') ? `/s/${slug}` : `/${slug || ''}`);
-    const { login, register } = useStoreAuth();
+    const { login, register, loginWithGoogle } = useStoreAuth();
     const [isLoading, setIsLoading] = useState(false);
+
+    const handleGoogleSuccess = async (credential: string) => {
+        setIsLoading(true);
+        const { error } = await loginWithGoogle(credential);
+        setIsLoading(false);
+
+        if (error) {
+            toast.error(error.message);
+        } else {
+            toast.success('Login dengan Google berhasil!');
+            navigate(from, { replace: true });
+        }
+    };
 
     // Get redirect path from state or default to store
     const from = (location.state as any)?.from || (basePath || '/');
@@ -133,6 +146,15 @@ export const StoreAuth = () => {
 
                             {/* Login Tab */}
                             <TabsContent value="login">
+                                <GoogleSignInButton
+                                    target="storefront"
+                                    buttonText="signin_with"
+                                    showDivider={true}
+                                    dividerText="Atau masuk dengan email / no hp"
+                                    disabled={isLoading}
+                                    onSuccess={handleGoogleSuccess}
+                                    className="mb-4"
+                                />
                                 <form onSubmit={handleLogin} className="space-y-4">
                                      <div className="space-y-2">
                                         <Label htmlFor="login-email">Email atau Nomor WhatsApp / Telepon</Label>
@@ -179,6 +201,15 @@ export const StoreAuth = () => {
 
                             {/* Register Tab */}
                             <TabsContent value="register">
+                                <GoogleSignInButton
+                                    target="storefront"
+                                    buttonText="signup_with"
+                                    showDivider={true}
+                                    dividerText="Atau daftar manual"
+                                    disabled={isLoading}
+                                    onSuccess={handleGoogleSuccess}
+                                    className="mb-4"
+                                />
                                 <form onSubmit={handleRegister} className="space-y-4">
                                     <div className="space-y-2">
                                         <Label htmlFor="register-name">Nama Lengkap *</Label>

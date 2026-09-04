@@ -871,6 +871,7 @@ export async function generateRasterLabelBitmap(
 ): Promise<Uint8Array> {
   const wMm = opts.widthMm || 33;
   const hMm = opts.heightMm || 15;
+  const isCompact = hMm <= 20;
   const cols = Math.max(1, opts.columns || 1);
   const gapH = opts.gapHorizontalMm ?? 2;
   const dpmm = 8;

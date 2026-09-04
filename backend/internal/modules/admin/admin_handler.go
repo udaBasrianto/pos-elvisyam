@@ -50,6 +50,8 @@ func (h *AdminHandler) RegisterRoutes(r *gin.RouterGroup) {
 		sa.POST("/smtp-settings/test", h.TestSMTPSettings)
 		sa.GET("/ai-settings", h.GetAISettings)
 		sa.PUT("/ai-settings", h.UpdateAISettings)
+		sa.GET("/google-auth-settings", h.GetGoogleAuthSettings)
+		sa.PUT("/google-auth-settings", h.UpdateGoogleAuthSettings)
 		sa.GET("/openrouter/models", h.FetchOpenRouterModels)
 		sa.GET("/global-stats", h.GetGlobalStats)
 		sa.GET("/global-analytics", h.GetGlobalAnalytics)
@@ -809,6 +811,68 @@ func (h *AdminHandler) UpdateAISettings(c *gin.Context) {
 		return
 	}
 	utils.RespondSuccess(c, "AI Settings saved", gin.H{"success": true})
+}
+
+type GoogleAuthSettings struct {
+	ID               string `json:"id" db:"id"`
+	ClientID         string `json:"client_id" db:"client_id"`
+	ClientSecret     string `json:"client_secret" db:"client_secret"`
+	IsEnabled        bool   `json:"is_enabled" db:"is_enabled"`
+	EnableStorefront bool   `json:"enable_storefront" db:"enable_storefront"`
+	EnablePOS        bool   `json:"enable_pos" db:"enable_pos"`
+}
+
+func (h *AdminHandler) GetGoogleAuthSettings(c *gin.Context) {
+	var s GoogleAuthSettings
+	err := database.DB.Get(&s, "SELECT id, COALESCE(client_id, '') as client_id, COALESCE(client_secret, '') as client_secret, COALESCE(is_enabled, false) as is_enabled, COALESCE(enable_storefront, true) as enable_storefront, COALESCE(enable_pos, true) as enable_pos FROM google_auth_settings LIMIT 1")
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"id":                "",
+			"client_id":         "",
+			"client_secret":     "",
+			"is_enabled":        false,
+			"enable_storefront": true,
+			"enable_pos":        true,
+		})
+		return
+	}
+	c.JSON(http.StatusOK, s)
+}
+
+func (h *AdminHandler) UpdateGoogleAuthSettings(c *gin.Context) {
+	var req struct {
+		ClientID         string `json:"client_id"`
+		ClientSecret     string `json:"client_secret"`
+		IsEnabled        bool   `json:"is_enabled"`
+		EnableStorefront bool   `json:"enable_storefront"`
+		EnablePOS        bool   `json:"enable_pos"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.RespondValidationError(c, "Data konfigurasi tidak valid")
+		return
+	}
+
+	// Preserve secret if masked or omitted
+	if strings.TrimSpace(req.ClientSecret) == "" {
+		var dbSecret *string
+		_ = database.DB.Get(&dbSecret, "SELECT client_secret FROM google_auth_settings LIMIT 1")
+		if dbSecret != nil {
+			req.ClientSecret = *dbSecret
+		}
+	}
+
+	_, _ = database.DB.Exec("DELETE FROM google_auth_settings")
+	_, err := database.DB.Exec(`
+		INSERT INTO google_auth_settings (id, client_id, client_secret, is_enabled, enable_storefront, enable_pos, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+	`, utils.GenerateUUID(), strings.TrimSpace(req.ClientID), strings.TrimSpace(req.ClientSecret), req.IsEnabled, req.EnableStorefront, req.EnablePOS)
+
+	if err != nil {
+		utils.RespondError(c, http.StatusInternalServerError, "Gagal menyimpan konfigurasi Google: "+err.Error())
+		return
+	}
+
+	utils.RespondSuccess(c, "Konfigurasi Google Auth berhasil disimpan", gin.H{"success": true})
 }
 
 func (h *AdminHandler) FetchOpenRouterModels(c *gin.Context) {
