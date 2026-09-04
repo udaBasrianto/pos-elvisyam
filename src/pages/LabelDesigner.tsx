@@ -46,6 +46,10 @@ import {
   Eye,
   EyeOff,
   CheckCircle2,
+  Bluetooth,
+  Unplug,
+  Radio,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useApp } from "@/contexts/AppContext";
@@ -54,9 +58,17 @@ import {
   loadLabelOptions,
   saveLabelOptions,
   triggerBrowserLabelPrint,
+  generateTsplLabel,
   type LabelPrintOptions,
   type LabelProductData,
 } from "@/lib/labelPrinter";
+import {
+  connectBluetoothPrinter,
+  disconnectBluetoothPrinter,
+  isBluetoothPrinterConnected,
+  getConnectedBluetoothPrinterName,
+  sendBluetoothPrintData,
+} from "@/lib/bluetoothPrinter";
 
 // Model Template Label OpenLabel
 export type LabelShape = "rectangle" | "circle" | "oval";
@@ -295,7 +307,14 @@ export default function LabelDesigner() {
   const [showRealContent, setShowRealContent] = useState<boolean>(true);
   const [isNewDialogOpen, setIsNewDialogOpen] = useState<boolean>(false);
 
-  // 4. Form State for New Template Dialog (1:1 with Open Label modal)
+  // 4. Bluetooth State
+  const [isBtConnected, setIsBtConnected] = useState<boolean>(() => isBluetoothPrinterConnected());
+  const [btPrinterName, setBtPrinterName] = useState<string | null>(() => getConnectedBluetoothPrinterName());
+  const [isConnectingBt, setIsConnectingBt] = useState<boolean>(false);
+  const [isPrintingBt, setIsPrintingBt] = useState<boolean>(false);
+  const [testPrintRows, setTestPrintRows] = useState<number>(1);
+
+  // 5. Form State for New Template Dialog (1:1 with Open Label modal)
   const [newForm, setNewForm] = useState({
     name: "Template Baru",
     widthMm: 50,
@@ -313,6 +332,16 @@ export default function LabelDesigner() {
       localStorage.setItem(STORAGE_ACTIVE_TEMPLATE_KEY, JSON.stringify(activeTemplate));
     } catch (_) {}
   }, [activeTemplate]);
+
+  // Listener event status Bluetooth
+  useEffect(() => {
+    const handleBtStatus = (e: any) => {
+      setIsBtConnected(e.detail?.connected ?? isBluetoothPrinterConnected());
+      setBtPrinterName(e.detail?.name ?? getConnectedBluetoothPrinterName());
+    };
+    window.addEventListener("pos_bluetooth_status", handleBtStatus);
+    return () => window.removeEventListener("pos_bluetooth_status", handleBtStatus);
+  }, []);
 
   // Simpan library templates ke localStorage
   const saveTemplatesToStorage = (newList: OpenLabelTemplate[]) => {
@@ -334,25 +363,25 @@ export default function LabelDesigner() {
     if (totalRollWidthMm <= 58) {
       return {
         label: "Printer Thermal 58mm & Barcode Mini",
-        color: "bg-blue-50 text-blue-700 border-blue-200",
-        desc: "Dapat dicetak di printer mini 58mm atau printer barcode label.",
+        color: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800",
+        desc: "Dapat dicetak di printer mini 58mm atau printer barcode label portable.",
       };
     } else if (totalRollWidthMm <= 80) {
       return {
         label: "Printer 80mm / Xprinter XP-365B",
-        color: "bg-emerald-50 text-emerald-700 border-emerald-200",
+        color: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
         desc: "Sangat cocok untuk Xprinter XP-365B, Kassen BT-P3000, atau roll 80mm.",
       };
     } else if (totalRollWidthMm <= 108) {
       return {
         label: "Standar Industri Xprinter XP-420B (108mm)",
-        color: "bg-indigo-50 text-indigo-700 border-indigo-200",
+        color: "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800",
         desc: "Standar paling laris untuk Xprinter XP-420B, Postek, TSC, Argox, Kassen E-460.",
       };
     } else {
       return {
         label: `Printer Label Lebar (> ${totalRollWidthMm}mm)`,
-        color: "bg-amber-50 text-amber-700 border-amber-200",
+        color: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800",
         desc: `Memerlukan printer barcode dengan feed roll minimal ${Math.ceil(totalRollWidthMm + 4)}mm.`,
       };
     }
@@ -382,6 +411,28 @@ export default function LabelDesigner() {
       brandName: "Tokoryo",
     };
   }, [state.products]);
+
+  // Helper konversi objek options untuk preview LabelSticker
+  const stickerOptions: LabelPrintOptions = useMemo(() => {
+    const base = loadLabelOptions();
+    return {
+      ...base,
+      widthMm: activeTemplate.widthMm,
+      heightMm: activeTemplate.heightMm,
+      columns: activeTemplate.columns,
+      gapHorizontalMm: activeTemplate.colSpacingMm,
+      gapVerticalMm: activeTemplate.rowSpacingMm,
+      showStoreName: activeTemplate.showStoreName,
+      showProductName: activeTemplate.showProductName,
+      showBarcode: activeTemplate.showBarcode,
+      showBarcodeText: activeTemplate.showBarcodeText,
+      showPrice: activeTemplate.showPrice,
+      showSku: activeTemplate.showSku,
+      showCategory: activeTemplate.showCategory,
+      showBrand: activeTemplate.showBrand,
+      barcodeWidthPercent: 100,
+    };
+  }, [activeTemplate]);
 
   // Terapkan template ke modul cetak barcode utama (pos_label_options)
   const handleApplyToMainBarcode = () => {
@@ -460,7 +511,82 @@ export default function LabelDesigner() {
     toast.success(`Template "${newTpl.name}" siap digunakan!`);
   };
 
-  // Tes Cetak Langsung (1 baris sampel)
+  // 🔌 Handler Koneksi Bluetooth
+  const handleConnectBt = async () => {
+    setIsConnectingBt(true);
+    try {
+      const res = await connectBluetoothPrinter();
+      if (res.success) {
+        setIsBtConnected(true);
+        setBtPrinterName(res.name || "Printer Bluetooth");
+        toast.success(`Terhubung ke ${res.name || "Printer Bluetooth"}`);
+      } else {
+        toast.info(res.message);
+      }
+    } catch (err: any) {
+      toast.error("Gagal menghubungkan Bluetooth: " + (err?.message || "Pastikan Bluetooth aktif"));
+    } finally {
+      setIsConnectingBt(false);
+    }
+  };
+
+  // ❌ Handler Putus Bluetooth
+  const handleDisconnectBt = () => {
+    disconnectBluetoothPrinter();
+    setIsBtConnected(false);
+    setBtPrinterName(null);
+    toast.info("Koneksi printer Bluetooth diputuskan.");
+  };
+
+  // 🖨️ Handler Cetak Langsung via Bluetooth (Format TSPL)
+  const handlePrintBluetooth = async () => {
+    setIsPrintingBt(true);
+    try {
+      let connected = isBluetoothPrinterConnected();
+      if (!connected) {
+        toast.info("Menghubungkan ke printer Bluetooth...");
+        const res = await connectBluetoothPrinter();
+        if (!res.success) {
+          toast.error(res.message || "Gagal menghubungkan printer Bluetooth");
+          return;
+        }
+        connected = true;
+        setIsBtConnected(true);
+        setBtPrinterName(res.name || "Printer Bluetooth");
+      }
+
+      // Bangun antrean keping stiker sesuai jumlah baris yang dipilih
+      const printItems: LabelProductData[] = [];
+      const rows = Math.max(1, testPrintRows);
+      for (let r = 0; r < rows; r++) {
+        for (let col = 0; col < activeTemplate.columns; col++) {
+          printItems.push({
+            ...previewProduct,
+            name: activeTemplate.columns > 1 ? `${previewProduct.name} #${col + 1}` : previewProduct.name,
+          });
+        }
+      }
+
+      toast.info("Mengirim format TSPL ke printer Bluetooth...");
+      const tsplData = generateTsplLabel(printItems, stickerOptions);
+      const success = await sendBluetoothPrintData(tsplData);
+
+      if (success) {
+        toast.success("Stiker berhasil dicetak via Bluetooth!", {
+          description: `${rows} baris (${activeTemplate.columns * rows} stiker) terkirim ke ${btPrinterName || "Printer"}.`,
+        });
+      } else {
+        toast.error("Gagal mengirim data cetak ke Bluetooth. Coba hubungkan ulang.");
+      }
+    } catch (err: any) {
+      console.error("Bluetooth print error:", err);
+      toast.error("Error cetak Bluetooth: " + (err?.message || "Periksa koneksi Bluetooth"));
+    } finally {
+      setIsPrintingBt(false);
+    }
+  };
+
+  // 🖨️ Handler Tes Cetak via Browser (Sistem / PDF)
   const handleTestPrint = () => {
     const currentOptions = loadLabelOptions();
     const testOptions: LabelPrintOptions = {
@@ -480,42 +606,22 @@ export default function LabelDesigner() {
       showBrand: activeTemplate.showBrand,
     };
 
-    // Buat sampel produk sebanyak jumlah kolom
     const testItems: { product: LabelProductData; count: number }[] = [];
-    for (let i = 0; i < activeTemplate.columns; i++) {
-      testItems.push({
-        product: {
-          ...previewProduct,
-          name: `${previewProduct.name} #${i + 1}`,
-        },
-        count: 1,
-      });
+    const rows = Math.max(1, testPrintRows);
+    for (let r = 0; r < rows; r++) {
+      for (let i = 0; i < activeTemplate.columns; i++) {
+        testItems.push({
+          product: {
+            ...previewProduct,
+            name: activeTemplate.columns > 1 ? `${previewProduct.name} #${i + 1}` : previewProduct.name,
+          },
+          count: 1,
+        });
+      }
     }
 
     triggerBrowserLabelPrint(testItems, testOptions, state.settings?.store_name || "Toko Saya");
   };
-
-  // Helper konversi objek options untuk preview LabelSticker
-  const stickerOptions: LabelPrintOptions = useMemo(() => {
-    const base = loadLabelOptions();
-    return {
-      ...base,
-      widthMm: activeTemplate.widthMm,
-      heightMm: activeTemplate.heightMm,
-      columns: activeTemplate.columns,
-      gapHorizontalMm: activeTemplate.colSpacingMm,
-      gapVerticalMm: activeTemplate.rowSpacingMm,
-      showStoreName: activeTemplate.showStoreName,
-      showProductName: activeTemplate.showProductName,
-      showBarcode: activeTemplate.showBarcode,
-      showBarcodeText: activeTemplate.showBarcodeText,
-      showPrice: activeTemplate.showPrice,
-      showSku: activeTemplate.showSku,
-      showCategory: activeTemplate.showCategory,
-      showBrand: activeTemplate.showBrand,
-      barcodeWidthPercent: 100,
-    };
-  }, [activeTemplate]);
 
   return (
     <div className="space-y-6 pb-16">
@@ -535,13 +641,41 @@ export default function LabelDesigner() {
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Simulasi fisik roll stiker barcode multi-kolom dengan penggaris caliper interaktif & kalkulator roll otomatis.
+              Simulasi fisik roll stiker barcode multi-kolom dengan caliper interaktif & direct print Bluetooth.
             </p>
           </div>
         </div>
 
         {/* Action Buttons Top */}
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Status Badge Bluetooth */}
+          {isBtConnected ? (
+            <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <Bluetooth className="w-4 h-4" />
+              <span className="max-w-[130px] truncate">{btPrinterName || "Printer BT"}</span>
+              <button
+                type="button"
+                onClick={handleDisconnectBt}
+                title="Putuskan Bluetooth"
+                className="text-muted-foreground hover:text-destructive ml-1 p-0.5"
+              >
+                <Unplug className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleConnectBt}
+              disabled={isConnectingBt}
+              className="gap-1.5 h-9 text-xs border-blue-200 text-blue-700 bg-blue-50/50 hover:bg-blue-100/70 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-900"
+            >
+              {isConnectingBt ? <Loader2 className="w-4 h-4 animate-spin text-blue-600" /> : <Bluetooth className="w-4 h-4 text-blue-600" />}
+              <span>{isConnectingBt ? "Memindai..." : "Hubungkan BT"}</span>
+            </Button>
+          )}
+
           <Button
             variant="outline"
             size="sm"
@@ -552,6 +686,18 @@ export default function LabelDesigner() {
             <span>Template Baru</span>
           </Button>
 
+          {/* Tombol Cetak Bluetooth */}
+          <Button
+            size="sm"
+            onClick={handlePrintBluetooth}
+            disabled={isPrintingBt}
+            className="gap-1.5 h-9 bg-blue-600 hover:bg-blue-700 text-white shadow-xs font-semibold"
+          >
+            {isPrintingBt ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bluetooth className="w-4 h-4" />}
+            <span>{isPrintingBt ? "Mengirim..." : "Cetak Bluetooth"}</span>
+          </Button>
+
+          {/* Tombol Cetak Browser */}
           <Button
             variant="outline"
             size="sm"
@@ -559,15 +705,16 @@ export default function LabelDesigner() {
             className="gap-1.5 h-9"
           >
             <Printer className="w-4 h-4 text-muted-foreground" />
-            <span>Tes Cetak</span>
+            <span>Cetak Sistem (PDF)</span>
           </Button>
 
           <Button
             size="sm"
+            variant="secondary"
             onClick={handleApplyToMainBarcode}
             className="gap-1.5 h-9 shadow-xs"
           >
-            <CheckCircle2 className="w-4 h-4" />
+            <CheckCircle2 className="w-4 h-4 text-primary" />
             <span>Terapkan ke Kasir</span>
           </Button>
         </div>
@@ -788,7 +935,7 @@ export default function LabelDesigner() {
                       setActiveTemplate({
                         ...activeTemplate,
                         shape: "circle",
-                        heightMm: activeTemplate.widthMm, // Lingkaran harus sama sisi
+                        heightMm: activeTemplate.widthMm,
                       })
                     }
                     className={`flex flex-col items-center justify-center p-2.5 rounded-xl border transition-all ${
@@ -952,6 +1099,114 @@ export default function LabelDesigner() {
             </CardContent>
           </Card>
 
+          {/* Card: Direct Bluetooth Printing Panel */}
+          <Card className="rounded-2xl border border-blue-200 dark:border-blue-900/60 bg-blue-50/30 dark:bg-blue-950/20 shadow-xs">
+            <CardHeader className="p-4 pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                  <Bluetooth className="w-4 h-4" />
+                  <CardTitle className="text-sm font-semibold">Cetak Langsung via Bluetooth</CardTitle>
+                </div>
+                <Badge variant="outline" className="text-[10px] font-mono border-blue-300 text-blue-600 dark:border-blue-700">
+                  Format TSPL
+                </Badge>
+              </div>
+              <CardDescription className="text-xs">
+                Cetak tanpa dialog sistem browser, langsung dikirim via Web Bluetooth ke printer thermal barcode.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 pt-0 space-y-3">
+              <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border text-xs">
+                <div className="flex items-center gap-2.5">
+                  <span
+                    className={`w-2.5 h-2.5 rounded-full ${
+                      isBtConnected ? "bg-emerald-500 animate-pulse" : "bg-slate-300 dark:bg-slate-600"
+                    }`}
+                  />
+                  <div>
+                    <div className="font-semibold text-foreground">
+                      {isBtConnected ? btPrinterName || "Printer Bluetooth" : "Belum Terhubung"}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {isBtConnected ? "Siap menerima perintah TSPL" : "Nyalakan Bluetooth pada printer"}
+                    </div>
+                  </div>
+                </div>
+
+                {isBtConnected ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleDisconnectBt}
+                    className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10"
+                  >
+                    Putuskan
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleConnectBt}
+                    disabled={isConnectingBt}
+                    className="h-8 px-3 text-xs gap-1.5 border-blue-300 text-blue-600 hover:bg-blue-50"
+                  >
+                    {isConnectingBt ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Bluetooth className="w-3.5 h-3.5" />}
+                    <span>{isConnectingBt ? "Memindai..." : "Hubungkan"}</span>
+                  </Button>
+                )}
+              </div>
+
+              {/* Selector Jumlah Baris Cetak */}
+              <div className="flex items-center justify-between gap-3 pt-1">
+                <div className="space-y-0.5">
+                  <Label className="text-xs font-medium">Jumlah Baris Cetak:</Label>
+                  <p className="text-[10px] text-muted-foreground">
+                    Total: {activeTemplate.columns * testPrintRows} stiker
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 text-xs"
+                    onClick={() => setTestPrintRows((prev) => Math.max(1, prev - 1))}
+                  >
+                    -
+                  </Button>
+                  <span className="w-10 text-center font-bold text-xs font-mono">
+                    {testPrintRows} baris
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 text-xs"
+                    onClick={() => setTestPrintRows((prev) => Math.min(50, prev + 1))}
+                  >
+                    +
+                  </Button>
+                </div>
+              </div>
+
+              {/* Tombol Cetak Bluetooth Besar */}
+              <Button
+                onClick={handlePrintBluetooth}
+                disabled={isPrintingBt}
+                className="w-full h-10 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-xs gap-2 shadow-xs"
+              >
+                {isPrintingBt ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Bluetooth className="w-4 h-4" />
+                )}
+                <span>
+                  {isPrintingBt ? "Mengirim Data ke Printer..." : "Cetak Stiker via Bluetooth"}
+                </span>
+              </Button>
+            </CardContent>
+          </Card>
+
           {/* Card: Elemen Konten Label */}
           <Card className="rounded-2xl border shadow-xs">
             <CardHeader className="p-4 pb-3">
@@ -1054,7 +1309,7 @@ export default function LabelDesigner() {
                     </Badge>
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Diagram skala 1:1 proporsi kertas stiker dengan penggaris caliper.
+                    Diagram skala 1:1 proporsi kertas stiker dengan penggaris caliper interaktif.
                   </CardDescription>
                 </div>
 
@@ -1105,7 +1360,7 @@ export default function LabelDesigner() {
                 <div
                   className="relative p-6 rounded-xl border border-sky-200 dark:border-sky-800 shadow-md flex items-center justify-center"
                   style={{
-                    backgroundColor: "rgba(224, 242, 254, 0.75)", // #e0f2fe
+                    backgroundColor: "rgba(224, 242, 254, 0.75)",
                     minWidth: "320px",
                   }}
                 >
@@ -1117,7 +1372,6 @@ export default function LabelDesigner() {
                       top: "24px",
                     }}
                   >
-                    {/* Garis vertikal caliper dengan bracket ticks */}
                     <div className="relative flex items-center">
                       <div className="absolute -left-1 w-2.5 h-[1px] bg-slate-600 dark:bg-slate-300" />
                       <div
@@ -1128,7 +1382,6 @@ export default function LabelDesigner() {
                         className="absolute -left-1 w-2.5 h-[1px] bg-slate-600 dark:bg-slate-300"
                         style={{ top: `${activeTemplate.heightMm * 3.78}px` }}
                       />
-                      {/* Label Teks mm */}
                       <div className="absolute -left-16 text-[11px] font-bold font-mono text-slate-700 dark:text-slate-200 whitespace-nowrap rotate-[-90deg]">
                         {activeTemplate.heightMm} mm
                       </div>
@@ -1143,11 +1396,9 @@ export default function LabelDesigner() {
                         className="relative flex flex-col items-center"
                         style={{ width: `${activeTemplate.widthMm * 3.78}px` }}
                       >
-                        {/* Label Teks mm */}
                         <span className="text-[11px] font-bold font-mono text-slate-700 dark:text-slate-200 mb-1">
                           {activeTemplate.widthMm} mm
                         </span>
-                        {/* Garis horizontal caliper */}
                         <div className="w-full relative flex items-center">
                           <div className="absolute left-0 -top-1 w-[1px] h-2.5 bg-slate-600 dark:bg-slate-300" />
                           <div className="w-full h-[1.5px] bg-slate-600 dark:bg-slate-300" />
@@ -1210,13 +1461,11 @@ export default function LabelDesigner() {
                                 {/* Barcode 1D Preview */}
                                 {activeTemplate.showBarcode && (
                                   <div className="w-full px-1 flex flex-col items-center my-auto">
-                                    {/* Barcode lines SVG simulasi resolusi tajam */}
                                     <svg
                                       className="w-full h-5 max-h-7"
                                       preserveAspectRatio="none"
                                       viewBox="0 0 100 24"
                                     >
-                                      {/* Barcode bars dummy */}
                                       <rect x="2" y="0" width="3" height="24" fill="#000" />
                                       <rect x="7" y="0" width="2" height="24" fill="#000" />
                                       <rect x="12" y="0" width="4" height="24" fill="#000" />
@@ -1372,7 +1621,7 @@ export default function LabelDesigner() {
             <div className="md:col-span-6 p-6 space-y-5 border-r">
               {/* Name */}
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-700">Name:</Label>
+                <Label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Name:</Label>
                 <Input
                   value={newForm.name}
                   onChange={(e) => setNewForm({ ...newForm, name: e.target.value })}
@@ -1383,7 +1632,7 @@ export default function LabelDesigner() {
 
               {/* Template Setting */}
               <div className="space-y-3 pt-2">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 dark:text-slate-100">
                   <span>Template Setting</span>
                   <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
                 </div>
@@ -1421,7 +1670,7 @@ export default function LabelDesigner() {
 
               {/* Column Setting */}
               <div className="space-y-3 pt-2">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 dark:text-slate-100">
                   <span>Column Setting</span>
                   <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
                 </div>
@@ -1460,7 +1709,7 @@ export default function LabelDesigner() {
 
               {/* Advanced Settings */}
               <div className="space-y-3 pt-2">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 dark:text-slate-100">
                   <span>Advanced Settings</span>
                   <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
                 </div>
@@ -1528,11 +1777,11 @@ export default function LabelDesigner() {
             </div>
 
             {/* Visual Preview Sisi Kanan (Persis Screenshot Open Label) */}
-            <div className="md:col-span-6 bg-slate-50 flex items-center justify-center p-6 relative overflow-hidden">
+            <div className="md:col-span-6 bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-6 relative overflow-hidden">
               <div className="relative flex flex-col items-center">
                 {/* Backing paper biru transparan */}
                 <div
-                  className="relative p-6 rounded-xl border border-sky-200 flex items-center justify-center shadow-xs"
+                  className="relative p-6 rounded-xl border border-sky-200 dark:border-sky-800 flex items-center justify-center shadow-xs"
                   style={{ backgroundColor: "#e0f2fe", minWidth: "260px" }}
                 >
                   {/* Caliper Height vertikal di sisi kiri */}
