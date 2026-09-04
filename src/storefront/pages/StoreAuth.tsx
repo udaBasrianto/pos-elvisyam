@@ -138,7 +138,17 @@ export const StoreAuth = () => {
                             <CardDescription>Login atau daftar untuk melanjutkan belanja</CardDescription>
                         </div>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="space-y-4">
+                        <GoogleSignInButton
+                            target="storefront"
+                            buttonText="continue_with"
+                            showDivider={true}
+                            dividerText="Atau lanjutkan secara manual"
+                            disabled={isLoading}
+                            onSuccess={handleGoogleSuccess}
+                            className="mb-2"
+                        />
+
                         <Tabs defaultValue="login" className="w-full">
                             <TabsList className="grid w-full grid-cols-2 mb-6">
                                 <TabsTrigger value="login">Login</TabsTrigger>
@@ -147,15 +157,6 @@ export const StoreAuth = () => {
 
                             {/* Login Tab */}
                             <TabsContent value="login">
-                                <GoogleSignInButton
-                                    target="storefront"
-                                    buttonText="signin_with"
-                                    showDivider={true}
-                                    dividerText="Atau masuk dengan email / no hp"
-                                    disabled={isLoading}
-                                    onSuccess={handleGoogleSuccess}
-                                    className="mb-4"
-                                />
                                 <form onSubmit={handleLogin} className="space-y-4">
                                      <div className="space-y-2">
                                         <Label htmlFor="login-email">Email atau Nomor WhatsApp / Telepon</Label>
@@ -202,15 +203,6 @@ export const StoreAuth = () => {
 
                             {/* Register Tab */}
                             <TabsContent value="register">
-                                <GoogleSignInButton
-                                    target="storefront"
-                                    buttonText="signup_with"
-                                    showDivider={true}
-                                    dividerText="Atau daftar manual"
-                                    disabled={isLoading}
-                                    onSuccess={handleGoogleSuccess}
-                                    className="mb-4"
-                                />
                                 <form onSubmit={handleRegister} className="space-y-4">
                                     <div className="space-y-2">
                                         <Label htmlFor="register-name">Nama Lengkap *</Label>

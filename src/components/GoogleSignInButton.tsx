@@ -14,6 +14,8 @@ declare global {
                 };
             };
         };
+        _googleGsiCallbacks?: Set<(credential: string) => void>;
+        _googleGsiInitializedClientId?: string;
     }
 }
 
@@ -48,6 +50,19 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
     const [isScriptLoaded, setIsScriptLoaded] = useState(false);
     const [isAuthenticating, setIsAuthenticating] = useState(false);
     const buttonRef = useRef<HTMLDivElement>(null);
+    const onSuccessRef = useRef(onSuccess);
+    onSuccessRef.current = onSuccess;
+
+    useEffect(() => {
+        if (!window._googleGsiCallbacks) {
+            window._googleGsiCallbacks = new Set();
+        }
+        const cb = (cred: string) => onSuccessRef.current(cred);
+        window._googleGsiCallbacks.add(cb);
+        return () => {
+            window._googleGsiCallbacks?.delete(cb);
+        };
+    }, []);
 
     // 1. Fetch Google configuration from backend
     useEffect(() => {
@@ -103,16 +118,30 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
         if (!isTargetEnabled || !isScriptLoaded || !googleConfig?.client_id || !buttonRef.current) return;
 
         try {
-            window.google?.accounts.id.initialize({
-                client_id: googleConfig.client_id,
-                callback: (response: { credential: string }) => {
-                    if (response?.credential) {
-                        setIsAuthenticating(true);
-                        onSuccess(response.credential);
-                    }
-                },
-                cancel_on_tap_outside: true,
-            });
+            // Initialize Google Identity Services once per client_id to prevent multiple initialization warnings
+            if (window.google?.accounts?.id && window._googleGsiInitializedClientId !== googleConfig.client_id) {
+                window.google.accounts.id.initialize({
+                    client_id: googleConfig.client_id,
+                    callback: (response: { credential: string }) => {
+                        if (response?.credential) {
+                            setIsAuthenticating(true);
+                            window._googleGsiCallbacks?.forEach((cb) => {
+                                try {
+                                    cb(response.credential);
+                                } catch (e) {
+                                    console.error('Error invoking Google callback:', e);
+                                }
+                            });
+                        }
+                    },
+                    cancel_on_tap_outside: true,
+                });
+                window._googleGsiInitializedClientId = googleConfig.client_id;
+            }
+
+            // Google GSI specification: width must be a pixel number between 200 and 400
+            const parentWidth = buttonRef.current.parentElement?.clientWidth || buttonRef.current.clientWidth || 360;
+            const validWidth = Math.max(200, Math.min(400, Math.floor(parentWidth)));
 
             buttonRef.current.innerHTML = '';
             window.google?.accounts.id.renderButton(buttonRef.current, {
@@ -121,13 +150,13 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
                 size: 'large',
                 text: buttonText,
                 shape: 'rectangular',
-                width: '100%',
+                width: validWidth,
                 logo_alignment: 'left',
             });
         } catch (e: any) {
             console.error('Error rendering Google button:', e);
         }
-    }, [isTargetEnabled, isScriptLoaded, googleConfig?.client_id, buttonText, onSuccess]);
+    }, [isTargetEnabled, isScriptLoaded, googleConfig?.client_id, buttonText]);
 
     if (!isTargetEnabled) {
         return null;
