@@ -11,6 +11,7 @@ import { useStoreAuth } from '../contexts/StoreAuthContext';
 import { toast } from 'sonner';
 import { getCustomDomainInfo } from '@/utils/domain';
 import { GoogleSignInButton } from '@/components/GoogleSignInButton';
+import { StoreSeoHead } from '../components/StoreSeoHead';
 
 export const StoreAuth = () => {
     const { slug } = useParams<{ slug: string }>();
