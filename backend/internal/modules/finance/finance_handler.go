@@ -5,6 +5,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"backend/internal/database"
@@ -76,6 +77,7 @@ func (h *FinanceHandler) RegisterRoutes(r *gin.RouterGroup) {
 		reinv.POST("/use", middleware.RequireRole("admin", "owner", "manager", "super_admin"), h.UseReinvestment)
 		reinv.POST("/add-manual", middleware.RequireRole("admin", "owner", "manager", "super_admin"), h.AddManualReinvestment)
 		reinv.POST("/add-from-distribution", middleware.RequireRole("admin", "owner", "manager", "super_admin"), h.AddReinvestmentFromDistribution)
+		reinv.POST("/sync", middleware.RequireRole("admin", "owner", "manager", "super_admin"), h.SyncReinvestment)
 		reinv.PUT("/transactions/:id", middleware.RequireRole("admin", "owner", "manager", "super_admin"), h.UpdateReinvestmentTransaction)
 		reinv.DELETE("/transactions/:id", middleware.RequireRole("admin", "owner", "manager", "super_admin"), h.DeleteReinvestmentTransaction)
 	}
@@ -468,6 +470,13 @@ type IncomeCostRow struct {
 
 func (h *FinanceHandler) GetIncomes(c *gin.Context) {
 	tenantID := c.GetString("tenantId")
+	userID := c.GetString("userId")
+	if tenantID == "" {
+		tenantID = userID
+	}
+	if userID == "" {
+		userID = tenantID
+	}
 
 	var list []IncomeRow
 	err := database.DB.Select(&list, `
@@ -477,9 +486,9 @@ func (h *FinanceHandler) GetIncomes(c *gin.Context) {
 		       COALESCE((SELECT SUM(amount) FROM income_costs WHERE income_id = i.id), 0) as total_costs,
 		       (i.amount - COALESCE((SELECT SUM(amount) FROM income_costs WHERE income_id = i.id), 0)) as net_income
 		FROM incomes i
-		WHERE i.user_id = $1
+		WHERE (i.user_id = $1 OR i.user_id = $2)
 		ORDER BY i.created_at DESC
-	`, tenantID)
+	`, tenantID, userID)
 
 	if err != nil {
 		c.JSON(http.StatusOK, []IncomeRow{})
@@ -493,6 +502,13 @@ func (h *FinanceHandler) GetIncomes(c *gin.Context) {
 
 func (h *FinanceHandler) GetIncomeSummary(c *gin.Context) {
 	tenantID := c.GetString("tenantId")
+	userID := c.GetString("userId")
+	if tenantID == "" {
+		tenantID = userID
+	}
+	if userID == "" {
+		userID = tenantID
+	}
 	period := c.Query("period")
 	fromDate := c.Query("from_date")
 	toDate := c.Query("to_date")
@@ -538,8 +554,8 @@ func (h *FinanceHandler) GetIncomeSummary(c *gin.Context) {
 			COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0) as paid_amount,
 			COALESCE(SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END), 0) as pending_amount
 		FROM incomes
-		WHERE user_id = $1 AND (income_date BETWEEN $2::date AND $3::date OR created_at::date BETWEEN $2::date AND $3::date)
-	`, tenantID, startStr, endStr)
+		WHERE (user_id = $1 OR user_id = $2) AND (COALESCE(income_date, date, created_at::date) BETWEEN $3::date AND $4::date)
+	`, tenantID, userID, startStr, endStr)
 
 	type CategoryStat struct {
 		Category string  `json:"category" db:"category"`
@@ -553,11 +569,11 @@ func (h *FinanceHandler) GetIncomeSummary(c *gin.Context) {
 		       COALESCE(SUM(amount), 0) as total,
 		       COUNT(*) as count
 		FROM incomes
-		WHERE user_id = $1 AND status = 'paid'
-		  AND (income_date BETWEEN $2::date AND $3::date OR created_at::date BETWEEN $2::date AND $3::date)
+		WHERE (user_id = $1 OR user_id = $2) AND status = 'paid'
+		  AND (COALESCE(income_date, date, created_at::date) BETWEEN $3::date AND $4::date)
 		GROUP BY category
 		ORDER BY total DESC
-	`, tenantID, startStr, endStr)
+	`, tenantID, userID, startStr, endStr)
 
 	if byCat == nil {
 		byCat = []CategoryStat{}
@@ -574,6 +590,13 @@ func (h *FinanceHandler) GetIncomeSummary(c *gin.Context) {
 
 func (h *FinanceHandler) GetIncomeByID(c *gin.Context) {
 	tenantID := c.GetString("tenantId")
+	userID := c.GetString("userId")
+	if tenantID == "" {
+		tenantID = userID
+	}
+	if userID == "" {
+		userID = tenantID
+	}
 	id := c.Param("id")
 
 	var inc IncomeRow
@@ -584,8 +607,8 @@ func (h *FinanceHandler) GetIncomeByID(c *gin.Context) {
 		       COALESCE((SELECT SUM(amount) FROM income_costs WHERE income_id = i.id), 0) as total_costs,
 		       (i.amount - COALESCE((SELECT SUM(amount) FROM income_costs WHERE income_id = i.id), 0)) as net_income
 		FROM incomes i
-		WHERE i.id = $1 AND i.user_id = $2
-	`, id, tenantID)
+		WHERE i.id = $1 AND (i.user_id = $2 OR i.user_id = $3)
+	`, id, tenantID, userID)
 
 	if err != nil {
 		utils.RespondError(c, http.StatusNotFound, "Income not found")
@@ -606,6 +629,10 @@ func (h *FinanceHandler) GetIncomeByID(c *gin.Context) {
 
 func (h *FinanceHandler) CreateIncome(c *gin.Context) {
 	tenantID := c.GetString("tenantId")
+	userID := c.GetString("userId")
+	if tenantID == "" {
+		tenantID = userID
+	}
 
 	var req struct {
 		Title         string  `json:"title"`
@@ -636,15 +663,29 @@ func (h *FinanceHandler) CreateIncome(c *gin.Context) {
 		incDate = time.Now().Format("2006-01-02")
 	}
 
+	title := strings.TrimSpace(req.Title)
+	if title == "" {
+		title = strings.TrimSpace(req.ProjectName)
+	}
+	if title == "" {
+		title = strings.TrimSpace(req.ClientName)
+	}
+	if title == "" {
+		title = strings.TrimSpace(req.Description)
+	}
+	if title == "" {
+		title = "Pendapatan Lainnya"
+	}
+
 	_, err := database.DB.Exec(`
 		INSERT INTO incomes (
 			id, user_id, title, client_name, project_name, description, amount, status,
-			payment_method, income_date, due_date, category, notes
+			payment_method, income_date, due_date, category, notes, date
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8,
-			$9, $10::date, NULLIF($11, '')::date, $12, $13
+			$9, $10::date, NULLIF($11, '')::date, $12, $13, $10::date
 		)
-	`, id, tenantID, req.Title, req.ClientName, req.ProjectName, req.Description, req.Amount, status,
+	`, id, tenantID, title, req.ClientName, req.ProjectName, req.Description, req.Amount, status,
 		req.PaymentMethod, incDate, req.DueDate, req.Category, req.Notes)
 
 	if err != nil {
@@ -652,11 +693,18 @@ func (h *FinanceHandler) CreateIncome(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"id": id, "amount": req.Amount, "title": req.Title})
+	c.JSON(http.StatusOK, gin.H{"id": id, "amount": req.Amount, "title": title})
 }
 
 func (h *FinanceHandler) UpdateIncome(c *gin.Context) {
 	tenantID := c.GetString("tenantId")
+	userID := c.GetString("userId")
+	if tenantID == "" {
+		tenantID = userID
+	}
+	if userID == "" {
+		userID = tenantID
+	}
 	id := c.Param("id")
 
 	var req struct {
@@ -679,15 +727,29 @@ func (h *FinanceHandler) UpdateIncome(c *gin.Context) {
 		return
 	}
 
+	title := strings.TrimSpace(req.Title)
+	if title == "" {
+		title = strings.TrimSpace(req.ProjectName)
+	}
+	if title == "" {
+		title = strings.TrimSpace(req.ClientName)
+	}
+	if title == "" {
+		title = strings.TrimSpace(req.Description)
+	}
+	if title == "" {
+		title = "Pendapatan Lainnya"
+	}
+
 	_, err := database.DB.Exec(`
 		UPDATE incomes
 		SET title = $1, client_name = $2, project_name = $3, description = $4, amount = $5,
-		    status = $6, payment_method = $7, income_date = NULLIF($8, '')::date, due_date = NULLIF($9, '')::date,
-		    paid_date = NULLIF($10, '')::date, category = $11, notes = $12, updated_at = CURRENT_TIMESTAMP
-		WHERE id = $13 AND user_id = $14
-	`, req.Title, req.ClientName, req.ProjectName, req.Description, req.Amount,
+		    status = $6, payment_method = $7, income_date = NULLIF($8, '')::date, date = NULLIF($8, '')::date,
+		    due_date = NULLIF($9, '')::date, paid_date = NULLIF($10, '')::date, category = $11, notes = $12, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $13 AND (user_id = $14 OR user_id = $15)
+	`, title, req.ClientName, req.ProjectName, req.Description, req.Amount,
 		req.Status, req.PaymentMethod, req.IncomeDate, req.DueDate,
-		req.PaidDate, req.Category, req.Notes, id, tenantID)
+		req.PaidDate, req.Category, req.Notes, id, tenantID, userID)
 
 	if err != nil {
 		utils.RespondError(c, http.StatusInternalServerError, err.Error())
@@ -699,10 +761,17 @@ func (h *FinanceHandler) UpdateIncome(c *gin.Context) {
 
 func (h *FinanceHandler) DeleteIncome(c *gin.Context) {
 	tenantID := c.GetString("tenantId")
+	userID := c.GetString("userId")
+	if tenantID == "" {
+		tenantID = userID
+	}
+	if userID == "" {
+		userID = tenantID
+	}
 	id := c.Param("id")
 
 	_, _ = database.DB.Exec("DELETE FROM income_costs WHERE income_id = $1", id)
-	_, err := database.DB.Exec("DELETE FROM incomes WHERE id = $1 AND user_id = $2", id, tenantID)
+	_, err := database.DB.Exec("DELETE FROM incomes WHERE id = $1 AND (user_id = $2 OR user_id = $3)", id, tenantID, userID)
 	if err != nil {
 		utils.RespondError(c, http.StatusInternalServerError, err.Error())
 		return
@@ -1304,6 +1373,8 @@ type ReinvestmentBalance struct {
 	TotalBalance   float64   `json:"total_balance" db:"total_balance"`
 	TotalAdded     float64   `json:"total_added" db:"total_added"`
 	TotalUsed      float64   `json:"total_used" db:"total_used"`
+	TotalIn        float64   `json:"total_in" db:"total_in"`
+	TotalOut       float64   `json:"total_out" db:"total_out"`
 	UpdatedAt      time.Time `json:"updated_at" db:"updated_at"`
 }
 
@@ -1340,6 +1411,8 @@ func (h *FinanceHandler) GetReinvestmentBalance(c *gin.Context) {
 			COALESCE(total_balance, current_balance, 0) as total_balance,
 			COALESCE(total_added, 0) as total_added,
 			COALESCE(total_used, 0) as total_used,
+			COALESCE(total_added, 0) as total_in,
+			COALESCE(total_used, 0) as total_out,
 			updated_at
 		FROM reinvestment_balance 
 		WHERE tenant_id = $1 OR user_id = $1 OR tenant_id = $2 OR user_id = $2
@@ -1352,6 +1425,8 @@ func (h *FinanceHandler) GetReinvestmentBalance(c *gin.Context) {
 			"total_balance":   0,
 			"total_added":     0,
 			"total_used":      0,
+			"total_in":        0,
+			"total_out":       0,
 		})
 		return
 	}
@@ -1409,6 +1484,8 @@ func (h *FinanceHandler) GetReinvestmentSummary(c *gin.Context) {
 			COALESCE(total_balance, current_balance, 0) as total_balance,
 			COALESCE(total_added, 0) as total_added,
 			COALESCE(total_used, 0) as total_used,
+			COALESCE(total_added, 0) as total_in,
+			COALESCE(total_used, 0) as total_out,
 			updated_at
 		FROM reinvestment_balance 
 		WHERE tenant_id = $1 OR user_id = $1 OR tenant_id = $2 OR user_id = $2
@@ -1645,6 +1722,102 @@ func (h *FinanceHandler) AddReinvestmentFromDistribution(c *gin.Context) {
 	utils.RespondSuccess(c, "Reinvestment added from distribution", gin.H{"success": true})
 }
 
+func recalculateReinvestmentBalance(tenantID, userID string) {
+	var sums struct {
+		TotalAdded float64 `db:"total_added"`
+		TotalUsed  float64 `db:"total_used"`
+	}
+	_ = database.DB.Get(&sums, `
+		SELECT 
+			COALESCE(SUM(CASE WHEN type = 'in' THEN amount ELSE 0 END), 0) as total_added,
+			COALESCE(SUM(CASE WHEN type = 'out' THEN amount ELSE 0 END), 0) as total_used
+		FROM reinvestment_transactions
+		WHERE user_id = $1 OR tenant_id = $1 OR user_id = $2 OR tenant_id = $2
+	`, tenantID, userID)
+
+	currentBalance := sums.TotalAdded - sums.TotalUsed
+	if currentBalance < 0 {
+		currentBalance = 0
+	}
+
+	_, _ = database.DB.Exec(`
+		INSERT INTO reinvestment_balance (id, tenant_id, user_id, current_balance, total_balance, total_added, total_used, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
+		ON CONFLICT (tenant_id) DO UPDATE
+		SET current_balance = $4,
+		    total_balance = $5,
+		    total_added = $6,
+		    total_used = $7,
+		    updated_at = CURRENT_TIMESTAMP
+	`, utils.GenerateUUID(), tenantID, userID, currentBalance, currentBalance, sums.TotalAdded, sums.TotalUsed)
+}
+
+func (h *FinanceHandler) SyncReinvestment(c *gin.Context) {
+	tenantID := c.GetString("tenantId")
+	userID := c.GetString("userId")
+	if tenantID == "" {
+		tenantID = userID
+	}
+	if userID == "" {
+		userID = tenantID
+	}
+
+	type DistRow struct {
+		ID          string  `db:"id"`
+		PeriodMonth int     `db:"period_month"`
+		PeriodYear  int     `db:"period_year"`
+		StoreAmount float64 `db:"store_amount"`
+		CreatedAt   string  `db:"created_at"`
+	}
+
+	var dists []DistRow
+	err := database.DB.Select(&dists, `
+		SELECT id, period_month, period_year, store_amount, TO_CHAR(created_at, 'YYYY-MM-DD') as created_at
+		FROM profit_distributions
+		WHERE (user_id = $1 OR tenant_id = $1 OR user_id = $2 OR tenant_id = $2)
+		  AND store_amount > 0
+		  AND id NOT IN (
+		      SELECT reference_id FROM reinvestment_transactions 
+		      WHERE reference_id IS NOT NULL 
+		        AND (user_id = $1 OR tenant_id = $1 OR user_id = $2 OR tenant_id = $2)
+		  )
+		ORDER BY period_year ASC, period_month ASC
+	`, tenantID, userID)
+
+	if err != nil {
+		utils.RespondError(c, http.StatusInternalServerError, "Gagal memeriksa sinkronisasi: "+err.Error())
+		return
+	}
+
+	syncedCount := 0
+	totalAmount := 0.0
+
+	for _, d := range dists {
+		txDate := d.CreatedAt
+		if txDate == "" {
+			txDate = time.Now().Format("2006-01-02")
+		}
+		desc := fmt.Sprintf("Bagi hasil toko periode %d/%d", d.PeriodMonth, d.PeriodYear)
+
+		_, insErr := database.DB.Exec(`
+			INSERT INTO reinvestment_transactions (id, tenant_id, user_id, type, amount, description, reference_id, reference_type, transaction_date)
+			VALUES ($1, $2, $3, 'in', $4, $5, $6, 'profit_distribution', $7::date)
+		`, utils.GenerateUUID(), tenantID, userID, d.StoreAmount, desc, d.ID, txDate)
+
+		if insErr == nil {
+			syncedCount++
+			totalAmount += d.StoreAmount
+		}
+	}
+
+	recalculateReinvestmentBalance(tenantID, userID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"synced_count": syncedCount,
+		"total_amount": totalAmount,
+	})
+}
+
 func (h *FinanceHandler) UpdateReinvestmentTransaction(c *gin.Context) {
 	tenantID := c.GetString("tenantId")
 	userID := c.GetString("userId")
@@ -1657,16 +1830,45 @@ func (h *FinanceHandler) UpdateReinvestmentTransaction(c *gin.Context) {
 	id := c.Param("id")
 
 	var req struct {
-		Description string `json:"description"`
-		Notes       string `json:"notes"`
+		Amount          *float64 `json:"amount"`
+		Category        *string  `json:"category"`
+		Description     string   `json:"description"`
+		Notes           string   `json:"notes"`
+		TransactionDate string   `json:"transaction_date"`
 	}
-	_ = c.ShouldBindJSON(&req)
-
-	_, err := database.DB.Exec("UPDATE reinvestment_transactions SET description = $1, notes = $2 WHERE id = $3 AND (user_id = $4 OR tenant_id = $4 OR user_id = $5 OR tenant_id = $5)", req.Description, req.Notes, id, tenantID, userID)
-	if err != nil {
-		utils.RespondError(c, http.StatusInternalServerError, err.Error())
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.RespondValidationError(c, "Invalid data")
 		return
 	}
+
+	txDate := strings.TrimSpace(req.TransactionDate)
+	if txDate == "" {
+		txDate = time.Now().Format("2006-01-02")
+	}
+
+	if req.Amount != nil && *req.Amount > 0 {
+		_, err := database.DB.Exec(`
+			UPDATE reinvestment_transactions 
+			SET description = $1, notes = $2, category = $3, amount = $4, transaction_date = $5::date
+			WHERE id = $6 AND (user_id = $7 OR tenant_id = $7 OR user_id = $8 OR tenant_id = $8)
+		`, req.Description, req.Notes, req.Category, *req.Amount, txDate, id, tenantID, userID)
+		if err != nil {
+			utils.RespondError(c, http.StatusInternalServerError, err.Error())
+			return
+		}
+	} else {
+		_, err := database.DB.Exec(`
+			UPDATE reinvestment_transactions 
+			SET description = $1, notes = $2, category = $3, transaction_date = $4::date
+			WHERE id = $5 AND (user_id = $6 OR tenant_id = $6 OR user_id = $7 OR tenant_id = $7)
+		`, req.Description, req.Notes, req.Category, txDate, id, tenantID, userID)
+		if err != nil {
+			utils.RespondError(c, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+
+	recalculateReinvestmentBalance(tenantID, userID)
 	utils.RespondSuccess(c, "Transaction updated", gin.H{"success": true})
 }
 
@@ -1686,6 +1888,7 @@ func (h *FinanceHandler) DeleteReinvestmentTransaction(c *gin.Context) {
 		utils.RespondError(c, http.StatusInternalServerError, err.Error())
 		return
 	}
+	recalculateReinvestmentBalance(tenantID, userID)
 	utils.RespondSuccess(c, "Transaction deleted", gin.H{"success": true})
 }
 

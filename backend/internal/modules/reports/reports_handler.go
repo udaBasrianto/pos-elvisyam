@@ -316,6 +316,13 @@ func (h *ReportsHandler) GetSalesSummary(c *gin.Context) {
 
 func (h *ReportsHandler) GetFinancialSummary(c *gin.Context) {
 	tenantID := c.GetString("tenantId")
+	userID := c.GetString("userId")
+	if tenantID == "" {
+		tenantID = userID
+	}
+	if userID == "" {
+		userID = tenantID
+	}
 	period := c.DefaultQuery("period", "month")
 	fromDate := c.Query("from_date")
 	toDate := c.Query("to_date")
@@ -347,8 +354,8 @@ func (h *ReportsHandler) GetFinancialSummary(c *gin.Context) {
 	var totalSales float64
 	_ = database.DB.Get(&totalSales, `
 		SELECT COALESCE(SUM(total), 0) FROM transactions
-		WHERE user_id = $1 AND status != 'void' AND created_at BETWEEN $2::timestamp AND $3::timestamp
-	`, tenantID, startStr, endStr)
+		WHERE (user_id = $1 OR user_id = $2) AND status != 'void' AND created_at BETWEEN $3::timestamp AND $4::timestamp
+	`, tenantID, userID, startStr, endStr)
 
 	// 2. COGS (HPP)
 	var totalCOGS float64
@@ -362,22 +369,22 @@ func (h *ReportsHandler) GetFinancialSummary(c *gin.Context) {
 		FROM transaction_items ti
 		JOIN transactions t ON ti.transaction_id = t.id
 		LEFT JOIN products p ON ti.product_id = p.id
-		WHERE t.user_id = $1 AND t.status != 'void' AND t.created_at BETWEEN $2::timestamp AND $3::timestamp
-	`, tenantID, startStr, endStr)
+		WHERE (t.user_id = $1 OR t.user_id = $2) AND t.status != 'void' AND t.created_at BETWEEN $3::timestamp AND $4::timestamp
+	`, tenantID, userID, startStr, endStr)
 
 	// 3. Operational Expenses
 	var totalExpenses float64
 	_ = database.DB.Get(&totalExpenses, `
 		SELECT COALESCE(SUM(amount), 0) FROM expenses
-		WHERE user_id = $1 AND date BETWEEN $2::date AND $3::date
-	`, tenantID, startStr, endStr)
+		WHERE (user_id = $1 OR user_id = $2) AND COALESCE(expense_date, date, created_at::date) BETWEEN $3::date AND $4::date
+	`, tenantID, userID, startStr[:10], endStr[:10])
 
 	// 4. Other Incomes
 	var totalOtherIncomes float64
 	_ = database.DB.Get(&totalOtherIncomes, `
 		SELECT COALESCE(SUM(amount), 0) FROM incomes
-		WHERE user_id = $1 AND status = 'paid' AND income_date BETWEEN $2::date AND $3::date
-	`, tenantID, startStr, endStr)
+		WHERE (user_id = $1 OR user_id = $2) AND status = 'paid' AND COALESCE(income_date, date, created_at::date) BETWEEN $3::date AND $4::date
+	`, tenantID, userID, startStr[:10], endStr[:10])
 
 	grossProfit := totalSales - totalCOGS
 	netProfit := grossProfit + totalOtherIncomes - totalExpenses
@@ -398,6 +405,13 @@ func (h *ReportsHandler) GetFinancialSummary(c *gin.Context) {
 
 func (h *ReportsHandler) GetExpensesDaily(c *gin.Context) {
 	tenantID := c.GetString("tenantId")
+	userID := c.GetString("userId")
+	if tenantID == "" {
+		tenantID = userID
+	}
+	if userID == "" {
+		userID = tenantID
+	}
 	ranges := utils.GetWIBDateRanges()
 
 	type ExpDailyRow struct {
@@ -408,14 +422,14 @@ func (h *ReportsHandler) GetExpensesDaily(c *gin.Context) {
 
 	var list []ExpDailyRow
 	err := database.DB.Select(&list, `
-		SELECT TO_CHAR(date, 'YYYY-MM-DD') as date,
+		SELECT TO_CHAR(COALESCE(expense_date, date, created_at::date), 'YYYY-MM-DD') as date,
 		       COALESCE(category, 'General') as category,
 		       SUM(amount) as total
 		FROM expenses
-		WHERE user_id = $1 AND date >= $2::date
-		GROUP BY TO_CHAR(date, 'YYYY-MM-DD'), category
+		WHERE (user_id = $1 OR user_id = $2) AND COALESCE(expense_date, date, created_at::date) >= $3::date
+		GROUP BY TO_CHAR(COALESCE(expense_date, date, created_at::date), 'YYYY-MM-DD'), category
 		ORDER BY date DESC
-	`, tenantID, ranges.Last30DaysStart)
+	`, tenantID, userID, ranges.Last30DaysStart)
 
 	if err != nil {
 		c.JSON(http.StatusOK, []ExpDailyRow{})
@@ -429,6 +443,13 @@ func (h *ReportsHandler) GetExpensesDaily(c *gin.Context) {
 
 func (h *ReportsHandler) GetExpensesMonthly(c *gin.Context) {
 	tenantID := c.GetString("tenantId")
+	userID := c.GetString("userId")
+	if tenantID == "" {
+		tenantID = userID
+	}
+	if userID == "" {
+		userID = tenantID
+	}
 	ranges := utils.GetWIBDateRanges()
 
 	type ExpMonthlyRow struct {
@@ -439,14 +460,14 @@ func (h *ReportsHandler) GetExpensesMonthly(c *gin.Context) {
 
 	var list []ExpMonthlyRow
 	err := database.DB.Select(&list, `
-		SELECT TO_CHAR(date, 'YYYY-MM') as month,
+		SELECT TO_CHAR(COALESCE(expense_date, date, created_at::date), 'YYYY-MM') as month,
 		       COALESCE(category, 'General') as category,
 		       SUM(amount) as total
 		FROM expenses
-		WHERE user_id = $1 AND date >= $2::date
-		GROUP BY TO_CHAR(date, 'YYYY-MM'), category
+		WHERE (user_id = $1 OR user_id = $2) AND COALESCE(expense_date, date, created_at::date) >= $3::date
+		GROUP BY TO_CHAR(COALESCE(expense_date, date, created_at::date), 'YYYY-MM'), category
 		ORDER BY month DESC
-	`, tenantID, ranges.Last12MonthsStart)
+	`, tenantID, userID, ranges.Last12MonthsStart)
 
 	if err != nil {
 		c.JSON(http.StatusOK, []ExpMonthlyRow{})
@@ -460,6 +481,13 @@ func (h *ReportsHandler) GetExpensesMonthly(c *gin.Context) {
 
 func (h *ReportsHandler) GetExpensesYearly(c *gin.Context) {
 	tenantID := c.GetString("tenantId")
+	userID := c.GetString("userId")
+	if tenantID == "" {
+		tenantID = userID
+	}
+	if userID == "" {
+		userID = tenantID
+	}
 
 	type ExpYearlyRow struct {
 		Year     string  `json:"year" db:"year"`
@@ -469,14 +497,14 @@ func (h *ReportsHandler) GetExpensesYearly(c *gin.Context) {
 
 	var list []ExpYearlyRow
 	err := database.DB.Select(&list, `
-		SELECT TO_CHAR(date, 'YYYY') as year,
+		SELECT TO_CHAR(COALESCE(expense_date, date, created_at::date), 'YYYY') as year,
 		       COALESCE(category, 'General') as category,
 		       SUM(amount) as total
 		FROM expenses
-		WHERE user_id = $1
-		GROUP BY TO_CHAR(date, 'YYYY'), category
+		WHERE (user_id = $1 OR user_id = $2)
+		GROUP BY TO_CHAR(COALESCE(expense_date, date, created_at::date), 'YYYY'), category
 		ORDER BY year DESC
-	`, tenantID)
+	`, tenantID, userID)
 
 	if err != nil {
 		c.JSON(http.StatusOK, []ExpYearlyRow{})

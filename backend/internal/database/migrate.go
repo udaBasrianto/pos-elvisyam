@@ -1403,6 +1403,7 @@ func AutoMigrate(db *sqlx.DB) error {
 
 		// Incomes compatibility
 		`ALTER TABLE incomes ADD COLUMN IF NOT EXISTS date DATE`,
+		`ALTER TABLE incomes ALTER COLUMN title DROP NOT NULL`,
 
 		// Reinvestment balance & transactions compatibility
 		`ALTER TABLE reinvestment_balance ADD COLUMN IF NOT EXISTS user_id VARCHAR(36)`,
