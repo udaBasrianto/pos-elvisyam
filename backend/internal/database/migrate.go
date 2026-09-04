@@ -1386,6 +1386,44 @@ func AutoMigrate(db *sqlx.DB) error {
 		`ALTER TABLE store_customers ADD COLUMN IF NOT EXISTS avatar_url TEXT`,
 		`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(100)`,
 		`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT`,
+
+		// Expenses & Finance Schema Alignment
+		`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS category_id VARCHAR(36)`,
+		`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS name VARCHAR(255)`,
+		`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS expense_date DATE`,
+		`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50) DEFAULT 'cash'`,
+		`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS description TEXT`,
+		`ALTER TABLE expenses ALTER COLUMN title DROP NOT NULL`,
+		`ALTER TABLE expenses ALTER COLUMN date DROP NOT NULL`,
+		`CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date)`,
+		`CREATE INDEX IF NOT EXISTS idx_expenses_expense_date ON expenses(expense_date)`,
+
+		// Expense categories
+		`ALTER TABLE expense_categories ADD COLUMN IF NOT EXISTS description TEXT`,
+
+		// Incomes compatibility
+		`ALTER TABLE incomes ADD COLUMN IF NOT EXISTS date DATE`,
+
+		// Reinvestment balance & transactions compatibility
+		`ALTER TABLE reinvestment_balance ADD COLUMN IF NOT EXISTS user_id VARCHAR(36)`,
+		`ALTER TABLE reinvestment_balance ADD COLUMN IF NOT EXISTS current_balance DECIMAL(15,2) DEFAULT 0`,
+		`ALTER TABLE reinvestment_balance ADD COLUMN IF NOT EXISTS total_added DECIMAL(15,2) DEFAULT 0`,
+		`ALTER TABLE reinvestment_balance ADD COLUMN IF NOT EXISTS total_used DECIMAL(15,2) DEFAULT 0`,
+		`ALTER TABLE reinvestment_balance ALTER COLUMN tenant_id DROP NOT NULL`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_reinvestment_balance_tenant ON reinvestment_balance(tenant_id)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_reinvestment_balance_user ON reinvestment_balance(user_id)`,
+
+		`ALTER TABLE reinvestment_transactions ADD COLUMN IF NOT EXISTS user_id VARCHAR(36)`,
+		`ALTER TABLE reinvestment_transactions ADD COLUMN IF NOT EXISTS category VARCHAR(100)`,
+		`ALTER TABLE reinvestment_transactions ADD COLUMN IF NOT EXISTS notes TEXT`,
+		`ALTER TABLE reinvestment_transactions ADD COLUMN IF NOT EXISTS reference_id VARCHAR(36)`,
+		`ALTER TABLE reinvestment_transactions ADD COLUMN IF NOT EXISTS reference_type VARCHAR(50)`,
+		`ALTER TABLE reinvestment_transactions ADD COLUMN IF NOT EXISTS transaction_date DATE DEFAULT CURRENT_DATE`,
+		`ALTER TABLE reinvestment_transactions ALTER COLUMN tenant_id DROP NOT NULL`,
+
+		// Profit distributions
+		`ALTER TABLE profit_distributions ADD COLUMN IF NOT EXISTS user_id VARCHAR(36)`,
+		`ALTER TABLE profit_distributions ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36)`,
 	}
 
 	for _, q := range queries {
