@@ -1913,17 +1913,33 @@ export function BarcodeConfigView({
                                 </div>
 
                                 <div className="flex items-center gap-1.5 shrink-0">
-                                  <span className="text-[11px] text-muted-foreground">Lebar Area:</span>
-                                  <span className="font-mono text-xs font-bold">{options.barcodeAreaWidthPercent || 90}%</span>
+                                  <span className="text-[11px] text-muted-foreground">Lebar:</span>
+                                  <span className="font-mono text-xs font-bold text-primary min-w-[34px]">{options.barcodeAreaWidthPercent || 90}%</span>
                                   <input
                                     type="range"
-                                    min={50}
+                                    min={40}
                                     max={100}
                                     step={1}
                                     value={options.barcodeAreaWidthPercent || 90}
                                     onChange={(e) => setOptions((prev) => ({ ...prev, barcodeAreaWidthPercent: Number(e.target.value) }))}
-                                    className="w-16 accent-primary h-1 bg-muted rounded cursor-pointer"
+                                    className="w-16 sm:w-20 accent-primary h-1 bg-muted rounded cursor-pointer"
                                   />
+                                  <div className="flex items-center gap-0.5">
+                                    {[75, 90, 100].map((pct) => (
+                                      <button
+                                        key={pct}
+                                        type="button"
+                                        onClick={() => setOptions((prev) => ({ ...prev, barcodeAreaWidthPercent: pct }))}
+                                        className={`text-[9.5px] px-1 py-0.5 rounded font-mono transition-colors ${
+                                          (options.barcodeAreaWidthPercent || 90) === pct
+                                            ? 'bg-primary text-primary-foreground font-bold'
+                                            : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+                                        }`}
+                                      >
+                                        {pct}%
+                                      </button>
+                                    ))}
+                                  </div>
                                 </div>
                               </div>
                             )}

@@ -731,13 +731,36 @@ export function generateTsplLabel(
             else if (opts.barcodeType === 'CODABAR') tsplType = "CODA";
 
             // humanReadable = 0 to prevent hardware overlapping numbers!
-            // Narrow and wide bar width derived from barcodeWidthRatio
-            const narrowBar = Math.max(1, Math.min(4, Math.round(opts.barcodeWidthRatio || 1.0)));
-            const wideBar = Math.max(narrowBar + 1, Math.round(narrowBar * 2));
-
-            // Calculate precise barcode width in dots for 100% true horizontal centering:
-            let estimatedBarcodeDots = 0;
             const cleanCode = (code || '').trim();
+            let baseModules = 60;
+            if (tsplType === 'EAN13' || tsplType === 'UPCA') {
+              baseModules = 95;
+            } else if (tsplType === 'EAN8') {
+              baseModules = 67;
+            } else if (tsplType === '39') {
+              baseModules = (cleanCode.length + 2) * 14;
+            } else if (tsplType === 'ITF14') {
+              baseModules = ((cleanCode.length * 2 + 1) * 2 + (cleanCode.length * 3 + 6));
+            } else {
+              // Code 128
+              const isAllDigits = /^\d+$/.test(cleanCode);
+              const dataChars = isAllDigits ? Math.ceil(cleanCode.length / 2) : cleanCode.length;
+              baseModules = (dataChars * 11) + 37;
+            }
+
+            // Target barcode width in dots derived from barcodeAreaWidthPercent (e.g. 50% - 100%)
+            const targetBarcodeDots = Math.floor(singleLabelW * ((opts.barcodeAreaWidthPercent ?? 90) / 100));
+            const calculatedNarrow = Math.max(1, Math.floor(targetBarcodeDots / Math.max(1, baseModules)));
+            const ratioMult = opts.barcodeWidthRatio && opts.barcodeWidthRatio !== 1.0 ? opts.barcodeWidthRatio : 1.0;
+            let narrowBar = Math.max(1, Math.min(6, Math.round(calculatedNarrow * ratioMult)));
+
+            // Prevent barcode from exceeding label boundaries
+            while (narrowBar > 1 && (baseModules * narrowBar) > (singleLabelW - 8)) {
+              narrowBar--;
+            }
+
+            const wideBar = Math.max(narrowBar + 1, Math.round(narrowBar * 2));
+            let estimatedBarcodeDots = 0;
             if (tsplType === 'EAN13' || tsplType === 'UPCA') {
               estimatedBarcodeDots = 95 * narrowBar;
             } else if (tsplType === 'EAN8') {
@@ -747,11 +770,7 @@ export function generateTsplLabel(
             } else if (tsplType === 'ITF14') {
               estimatedBarcodeDots = ((cleanCode.length * 2 + 1) * wideBar + (cleanCode.length * 3 + 6) * narrowBar);
             } else {
-              // Code 128 (Start: 11, Check: 11, Stop: 13, Term: 2 = 37 modules)
-              const isAllDigits = /^\d+$/.test(cleanCode);
-              const dataChars = isAllDigits ? Math.ceil(cleanCode.length / 2) : cleanCode.length;
-              const totalModules = (dataChars * 11) + 37;
-              estimatedBarcodeDots = totalModules * narrowBar;
+              estimatedBarcodeDots = baseModules * narrowBar;
             }
 
             // Center exactly inside the label column:
@@ -1025,7 +1044,7 @@ export async function generateRasterLabelBitmap(
           const userBcDots = opts.barcodeHeightMm ? Math.max(8, Math.round(opts.barcodeHeightMm * dpmm)) : 0;
           const maxAvailableDots = Math.max(8, canvas.height - y - digitsH - priceH - 3);
           const barH = userBcDots > 0 ? Math.min(userBcDots, maxAvailableDots) : Math.max(8, Math.min(48, maxAvailableDots));
-          const barW = Math.min(singleLabelW - 12, Math.floor(singleLabelW * ((opts.barcodeAreaWidthPercent ?? 92) / 100)));
+          const barW = Math.min(singleLabelW - 8, Math.floor(singleLabelW * ((opts.barcodeAreaWidthPercent ?? 90) / 100)));
           let startX = colOffsetX + Math.floor((singleLabelW - barW) / 2) + offBc.x * dpmm + elemPadHDots;
           if (opts.textAlign === 'left') {
             startX = colOffsetX + Math.floor(padH * dpmm) + offBc.x * dpmm + elemPadHDots;
@@ -1033,12 +1052,20 @@ export async function generateRasterLabelBitmap(
             startX = colOffsetX + singleLabelW - barW - Math.floor(padH * dpmm) + offBc.x * dpmm - elemPadHDots;
           }
           const startY = y + offBc.y * dpmm;
-          const moduleW = (barW / barcodePattern.length) * (opts.barcodeWidthRatio || 1.0);
 
+          let totalModules = 0;
+          for (let c = 0; c < barcodePattern.length; c++) {
+            totalModules += parseInt(barcodePattern[c], 10) || 1;
+          }
+          const moduleW = totalModules > 0 ? barW / totalModules : 1;
+          let curX = startX;
           for (let i = 0; i < barcodePattern.length; i++) {
-            if (barcodePattern[i] === '1') {
-              ctx.fillRect(startX + i * moduleW, startY, Math.ceil(moduleW), barH);
+            const w = (parseInt(barcodePattern[i], 10) || 1) * moduleW;
+            const isBar = (i % 2 === 0);
+            if (isBar) {
+              ctx.fillRect(curX, startY, Math.ceil(w), barH);
             }
+            curX += w;
           }
           y += barH + 2 + sectionGapDots + elemPadVDots;
         }

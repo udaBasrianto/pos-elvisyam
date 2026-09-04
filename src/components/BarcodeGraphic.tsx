@@ -77,6 +77,7 @@ export interface BarcodeGraphicProps {
   margin?: number;
   quietZone?: number;
   preserveRatio?: boolean;
+  stretchWidth?: boolean;
   format?: 'CODE128' | 'EAN13' | 'EAN8' | 'UPC' | 'CODE39' | 'ITF' | 'QR' | 'CODABAR' | string;
   textAlign?: 'left' | 'center' | 'right';
 }
@@ -98,10 +99,14 @@ export const BarcodeGraphic: React.FC<BarcodeGraphicProps> = ({
   margin = 8,
   format = 'CODE128',
   textAlign = 'center',
+  preserveRatio = false,
+  stretchWidth,
 }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const cleanValue = (value || "000000").trim();
   const upperFormat = (format || 'CODE128').toUpperCase();
+  const isQr = upperFormat === 'QR';
+  const shouldStretch = stretchWidth !== undefined ? stretchWidth : (!preserveRatio && !isQr && !displayValue);
 
   useEffect(() => {
     if (svgRef.current && cleanValue) {
@@ -206,18 +211,25 @@ export const BarcodeGraphic: React.FC<BarcodeGraphicProps> = ({
           }
         });
 
-        // Ensure SVG preserves aspect ratio and centers cleanly according to textAlign
+        // Ensure SVG stretches to container width if shouldStretch is true, or preserves aspect ratio
         if (svgRef.current) {
-          svgRef.current.setAttribute(
-            'preserveAspectRatio',
-            textAlign === 'left' ? 'xMinYMid meet' : textAlign === 'right' ? 'xMaxYMid meet' : 'xMidYMid meet'
-          );
+          if (!shouldStretch) {
+            svgRef.current.setAttribute(
+              'preserveAspectRatio',
+              textAlign === 'left' ? 'xMinYMid meet' : textAlign === 'right' ? 'xMaxYMid meet' : 'xMidYMid meet'
+            );
+          } else {
+            // For 1D barcode lines on sticker: stretch across full area width specified by user
+            svgRef.current.setAttribute('preserveAspectRatio', 'none');
+            svgRef.current.style.width = '100%';
+            svgRef.current.style.height = '100%';
+          }
         }
       } catch (err) {
         console.error("JsBarcode render error:", err);
       }
     }
-  }, [cleanValue, width, height, displayValue, fontSize, fontFamily, margin, upperFormat, textAlign]);
+  }, [cleanValue, width, height, displayValue, fontSize, fontFamily, margin, upperFormat, textAlign, shouldStretch]);
 
   return (
     <div className={`flex items-center ${textAlign === 'left' ? 'justify-start' : textAlign === 'right' ? 'justify-end' : 'justify-center'} w-full h-full bg-white p-0 overflow-hidden`}>
@@ -227,7 +239,7 @@ export const BarcodeGraphic: React.FC<BarcodeGraphicProps> = ({
         style={{
           maxWidth: '100%',
           maxHeight: '100%',
-          width: 'auto',
+          width: shouldStretch ? '100%' : 'auto',
           height: '100%',
           display: 'block',
           margin: textAlign === 'left' ? '0 auto 0 0' : textAlign === 'right' ? '0 0 0 auto' : '0 auto',
