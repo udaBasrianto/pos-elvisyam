@@ -609,3 +609,247 @@ export async function sendNiimbotPackets(packets: Uint8Array[]): Promise<boolean
   console.log(`[Bluetooth/Niimbot] 🟢 All ${packets.length} packets sent successfully`);
   return true;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DEDICATED BLUETOOTH LABEL PRINTER CHANNEL (Khusus Printer Label / Barcode TSPL)
+// Terpisah dari Printer Struk Kasir agar kasir & gudang label tidak saling ganggu
+// ─────────────────────────────────────────────────────────────────────────────
+let activeLabelDevice: any = null;
+let activeLabelPrinterCharacteristic: any = null;
+let activeLabelCandidates: any[] = [];
+let activeLabelPrinterName: string | null = null;
+let isLabelConnecting = false;
+
+export const STORAGE_LABEL_DEVICE_ID = 'pos_bt_label_printer_id';
+export const STORAGE_LABEL_DEVICE_NAME = 'pos_bt_label_printer_name';
+
+function notifyLabelStatusChange(connected: boolean, name?: string | null) {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('pos_bluetooth_label_status', {
+      detail: {
+        connected,
+        name: name || activeLabelPrinterName || localStorage.getItem(STORAGE_LABEL_DEVICE_NAME) || null,
+        timestamp: Date.now()
+      }
+    }));
+  }
+}
+
+async function connectToLabelDevice(device: any, maxRetries = 3): Promise<boolean> {
+  if (!device) return false;
+
+  isLabelConnecting = true;
+  activeLabelDevice = device;
+  activeLabelPrinterName = device.name || localStorage.getItem(STORAGE_LABEL_DEVICE_NAME) || 'Printer Label Bluetooth';
+
+  const handleLabelDisconnect = () => {
+    console.log(`[Bluetooth/Label] 🔴 Disconnected from ${activeLabelPrinterName || 'Printer Label'}`);
+    activeLabelPrinterCharacteristic = null;
+    activeLabelCandidates = [];
+    notifyLabelStatusChange(false, null);
+  };
+
+  device.removeEventListener('gattserverdisconnected', handleLabelDisconnect);
+  device.addEventListener('gattserverdisconnected', handleLabelDisconnect);
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      if (device.gatt?.connected) {
+        try { device.gatt.disconnect(); } catch (_) {}
+        await new Promise(r => setTimeout(r, 300));
+      }
+
+      console.log(`[Bluetooth/Label] 🔄 Connection attempt ${attempt}/${maxRetries} to ${activeLabelPrinterName}...`);
+      const server = await device.gatt.connect();
+      await new Promise(r => setTimeout(r, attempt === 1 ? 200 : 500));
+
+      if (!device.gatt?.connected) {
+        console.warn(`[Bluetooth/Label] GATT disconnected before service discovery (attempt ${attempt})`);
+        continue;
+      }
+
+      const candidates = await discoverCandidateCharacteristics(server);
+      if (candidates.length > 0) {
+        activeLabelCandidates = candidates;
+        activeLabelPrinterCharacteristic = candidates[0];
+        try {
+          if (device.id) localStorage.setItem(STORAGE_LABEL_DEVICE_ID, device.id);
+          if (device.name) localStorage.setItem(STORAGE_LABEL_DEVICE_NAME, device.name);
+        } catch (_) {}
+        console.log(`[Bluetooth/Label] 🟢 Connected to ${activeLabelPrinterName} (${candidates.length} candidate write channels ready)`);
+        notifyLabelStatusChange(true, activeLabelPrinterName);
+        isLabelConnecting = false;
+        return true;
+      }
+    } catch (err) {
+      console.warn(`[Bluetooth/Label] Connection attempt ${attempt}/${maxRetries} error:`, err);
+    }
+
+    if (attempt < maxRetries) {
+      const delayMs = 500 * attempt;
+      await new Promise(r => setTimeout(r, delayMs));
+    }
+  }
+
+  notifyLabelStatusChange(false, null);
+  isLabelConnecting = false;
+  return false;
+}
+
+/**
+ * 🏷️ Buka dialog pemilih Bluetooth khusus untuk Printer Label Stiker (Xprinter, Niimbot, Kassen, Panda, dll.)
+ */
+export async function connectBluetoothLabelPrinter(): Promise<{ success: boolean; name?: string; message: string }> {
+  if (typeof window === 'undefined' || !('bluetooth' in navigator)) {
+    return {
+      success: false,
+      message: 'Browser Anda belum mendukung Web Bluetooth. Gunakan Chrome, Edge, atau Chrome Android.'
+    };
+  }
+
+  try {
+    const nav = navigator as any;
+    const device = await nav.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: BLUETOOTH_SERVICES
+    });
+
+    if (!device) {
+      return { success: false, message: 'Batal memilih printer label Bluetooth.' };
+    }
+
+    const connected = await connectToLabelDevice(device);
+    if (connected) {
+      return {
+        success: true,
+        name: activeLabelPrinterName || 'Printer Label Bluetooth',
+        message: `🟢 Berhasil terhubung ke Printer Label: ${activeLabelPrinterName || 'Printer Label'}!`
+      };
+    } else {
+      return {
+        success: false,
+        message: `Gagal mengakses jalur cetak printer label ${device.name || 'Printer'}. Pastikan printer menyala.`
+      };
+    }
+  } catch (error: any) {
+    console.error('[Bluetooth/Label] requestDevice error:', error);
+    if (error.name === 'NotFoundError') {
+      return { success: false, message: 'Batal memilih printer label Bluetooth.' };
+    }
+    return {
+      success: false,
+      message: error.message || 'Gagal menyambungkan Bluetooth printer label.'
+    };
+  }
+}
+
+/**
+ * 🏷️ Putuskan hanya printer label tanpa mengganggu printer struk kasir
+ */
+export function disconnectBluetoothLabelPrinter(): void {
+  try {
+    if (activeLabelDevice && activeLabelDevice.gatt && activeLabelDevice.gatt.connected) {
+      activeLabelDevice.gatt.disconnect();
+    }
+  } catch (_) {}
+  activeLabelPrinterCharacteristic = null;
+  activeLabelCandidates = [];
+  activeLabelDevice = null;
+  activeLabelPrinterName = null;
+  try {
+    localStorage.removeItem(STORAGE_LABEL_DEVICE_ID);
+    localStorage.removeItem(STORAGE_LABEL_DEVICE_NAME);
+  } catch (_) {}
+  notifyLabelStatusChange(false, null);
+}
+
+/**
+ * 🏷️ Cek apakah printer label khusus sedang aktif terhubung
+ */
+export function isBluetoothLabelPrinterConnected(): boolean {
+  return (
+    activeLabelPrinterCharacteristic !== null &&
+    activeLabelDevice !== null &&
+    Boolean(activeLabelDevice.gatt?.connected)
+  );
+}
+
+/**
+ * 🏷️ Dapatkan nama printer label Bluetooth yang terhubung
+ */
+export function getConnectedBluetoothLabelPrinterName(): string | null {
+  return activeLabelPrinterName || (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_LABEL_DEVICE_NAME) : null);
+}
+
+/**
+ * 🏷️ Sambungkan otomatis ke printer label Bluetooth yang tersimpan
+ */
+export async function autoConnectBluetoothLabelPrinter(): Promise<boolean> {
+  if (typeof window === 'undefined' || !('bluetooth' in navigator)) return false;
+  if (isBluetoothLabelPrinterConnected()) return true;
+  if (isLabelConnecting) return false;
+
+  try {
+    const nav = navigator as any;
+    if (nav.bluetooth && typeof nav.bluetooth.getDevices === 'function') {
+      const devices = await nav.bluetooth.getDevices();
+      if (devices && devices.length > 0) {
+        const savedId = localStorage.getItem(STORAGE_LABEL_DEVICE_ID);
+        if (savedId) {
+          const target = devices.find((d: any) => d.id === savedId);
+          if (target) {
+            console.log(`[Bluetooth/Label] 🔄 Auto-reconnecting to remembered label device: ${target.name || target.id}`);
+            const ok = await connectToLabelDevice(target);
+            if (ok) return true;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[Bluetooth/Label] Auto-connect error:", e);
+  }
+  return false;
+}
+
+/**
+ * 🏷️ Kirim data cetak (TSPL / CPCL / Bitmap) khusus ke Printer Label
+ */
+export async function sendBluetoothLabelPrintData(data: Uint8Array): Promise<boolean> {
+  if (!isBluetoothLabelPrinterConnected()) {
+    if (activeLabelDevice) {
+      const ok = await connectToLabelDevice(activeLabelDevice, 2);
+      if (!ok) return false;
+    } else {
+      const reconnected = await autoConnectBluetoothLabelPrinter();
+      if (!reconnected) {
+        // Fallback: jika user hanya punya 1 printer serbaguna
+        if (isBluetoothPrinterConnected()) {
+          console.log("[Bluetooth/Label] Using general Bluetooth printer as fallback");
+          return await sendBluetoothPrintData(data);
+        }
+        return false;
+      }
+    }
+  }
+
+  const char = activeLabelPrinterCharacteristic || (activeLabelCandidates.length > 0 ? activeLabelCandidates[0] : null);
+  if (!char) return false;
+
+  try {
+    console.log(`[Bluetooth/Label] 📤 Sending ${data.length} bytes to label printer...`);
+    const chunkSize = 20;
+    for (let i = 0; i < data.length; i += chunkSize) {
+      const chunk = data.slice(i, i + chunkSize);
+      const ok = await writeChunkToCharacteristic(char, chunk);
+      if (!ok) return false;
+      if (i + chunkSize < data.length) {
+        await new Promise(resolve => setTimeout(resolve, 8));
+      }
+    }
+    return true;
+  } catch (e) {
+    console.error('[Bluetooth/Label] Print error:', e);
+    return false;
+  }
+}
+

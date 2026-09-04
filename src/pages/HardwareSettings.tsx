@@ -18,6 +18,10 @@ import {
   isBluetoothPrinterConnected,
   getConnectedBluetoothPrinterName,
   disconnectBluetoothPrinter,
+  connectBluetoothLabelPrinter,
+  disconnectBluetoothLabelPrinter,
+  isBluetoothLabelPrinterConnected,
+  getConnectedBluetoothLabelPrinterName,
 } from '@/lib/bluetoothPrinter';
 import { LABEL_PRESETS, type LabelProductData } from '@/lib/labelPrinter';
 import { playScanBeep } from '@/lib/sound';
@@ -403,41 +407,44 @@ function CashDrawerTab() {
 
 // ── Tab: Label Printer ───────────────────────────────────────────────────────
 function LabelTab() {
-  const { config, updateConfig, printLabel, connectPrinter } = useHardware();
+  const { config, updateConfig, printLabel } = useHardware();
   const [connecting, setConnecting] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [isBtConnected, setIsBtConnected] = useState(isBluetoothPrinterConnected());
-  const [btName, setBtName] = useState<string | null>(getConnectedBluetoothPrinterName());
+  const [isBtConnected, setIsBtConnected] = useState(isBluetoothLabelPrinterConnected());
+  const [btName, setBtName] = useState<string | null>(getConnectedBluetoothLabelPrinterName());
 
   useEffect(() => {
-    setIsBtConnected(isBluetoothPrinterConnected());
-    setBtName(getConnectedBluetoothPrinterName());
+    setIsBtConnected(isBluetoothLabelPrinterConnected());
+    setBtName(getConnectedBluetoothLabelPrinterName());
 
     const handleStatus = (e: any) => {
       setIsBtConnected(Boolean(e.detail?.connected));
-      setBtName(e.detail?.name || getConnectedBluetoothPrinterName());
+      setBtName(e.detail?.name || getConnectedBluetoothLabelPrinterName());
     };
-    window.addEventListener('pos_bluetooth_status', handleStatus);
-    return () => window.removeEventListener('pos_bluetooth_status', handleStatus);
+    window.addEventListener('pos_bluetooth_label_status', handleStatus);
+    return () => window.removeEventListener('pos_bluetooth_label_status', handleStatus);
   }, []);
 
   const handleConnect = async () => {
     setConnecting(true);
-    const result = await connectPrinter('bluetooth');
+    const result = await connectBluetoothLabelPrinter();
     setConnecting(false);
-    if (result) {
+    if (result && result.success) {
       setIsBtConnected(true);
-      setBtName(getConnectedBluetoothPrinterName());
+      setBtName(result.name || getConnectedBluetoothLabelPrinterName());
       updateConfig({ labelPrinterConnected: true });
+      toast.success(result.message);
+    } else if (result) {
+      toast.error(result.message);
     }
   };
 
   const handleDisconnect = () => {
-    disconnectBluetoothPrinter();
+    disconnectBluetoothLabelPrinter();
     setIsBtConnected(false);
     setBtName(null);
     updateConfig({ labelPrinterConnected: false });
-    toast.info('Printer Bluetooth diputuskan.');
+    toast.info('Printer Label Bluetooth diputuskan.');
   };
 
   const handleTestLabelPrint = async () => {

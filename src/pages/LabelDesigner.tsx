@@ -63,11 +63,14 @@ import {
   type LabelProductData,
 } from "@/lib/labelPrinter";
 import {
-  connectBluetoothPrinter,
-  disconnectBluetoothPrinter,
+  connectBluetoothLabelPrinter,
+  disconnectBluetoothLabelPrinter,
+  isBluetoothLabelPrinterConnected,
+  getConnectedBluetoothLabelPrinterName,
+  autoConnectBluetoothLabelPrinter,
+  sendBluetoothLabelPrintData,
   isBluetoothPrinterConnected,
   getConnectedBluetoothPrinterName,
-  sendBluetoothPrintData,
 } from "@/lib/bluetoothPrinter";
 
 // Model Template Label OpenLabel
@@ -307,12 +310,13 @@ export default function LabelDesigner() {
   const [showRealContent, setShowRealContent] = useState<boolean>(true);
   const [isNewDialogOpen, setIsNewDialogOpen] = useState<boolean>(false);
 
-  // 4. Bluetooth State
-  const [isBtConnected, setIsBtConnected] = useState<boolean>(() => isBluetoothPrinterConnected());
-  const [btPrinterName, setBtPrinterName] = useState<string | null>(() => getConnectedBluetoothPrinterName());
+  // 4. Bluetooth Label Printer State (Khusus Printer Label / Barcode Stiker)
+  const [isBtConnected, setIsBtConnected] = useState<boolean>(() => isBluetoothLabelPrinterConnected());
+  const [btPrinterName, setBtPrinterName] = useState<string | null>(() => getConnectedBluetoothLabelPrinterName());
   const [isConnectingBt, setIsConnectingBt] = useState<boolean>(false);
   const [isPrintingBt, setIsPrintingBt] = useState<boolean>(false);
   const [testPrintRows, setTestPrintRows] = useState<number>(1);
+  const [receiptPrinterName, setReceiptPrinterName] = useState<string | null>(() => getConnectedBluetoothPrinterName());
 
   // 5. Form State for New Template Dialog (1:1 with Open Label modal)
   const [newForm, setNewForm] = useState({
@@ -333,14 +337,35 @@ export default function LabelDesigner() {
     } catch (_) {}
   }, [activeTemplate]);
 
-  // Listener event status Bluetooth
+  // Listener event status Bluetooth Label Printer & Receipt Printer
   useEffect(() => {
-    const handleBtStatus = (e: any) => {
-      setIsBtConnected(e.detail?.connected ?? isBluetoothPrinterConnected());
-      setBtPrinterName(e.detail?.name ?? getConnectedBluetoothPrinterName());
+    setIsBtConnected(isBluetoothLabelPrinterConnected());
+    setBtPrinterName(getConnectedBluetoothLabelPrinterName());
+    setReceiptPrinterName(getConnectedBluetoothPrinterName());
+
+    // Auto-connect ke printer label yang tersimpan
+    autoConnectBluetoothLabelPrinter().then((ok) => {
+      if (ok) {
+        setIsBtConnected(true);
+        setBtPrinterName(getConnectedBluetoothLabelPrinterName());
+      }
+    });
+
+    const handleLabelStatus = (e: any) => {
+      setIsBtConnected(e.detail?.connected ?? isBluetoothLabelPrinterConnected());
+      setBtPrinterName(e.detail?.name ?? getConnectedBluetoothLabelPrinterName());
     };
-    window.addEventListener("pos_bluetooth_status", handleBtStatus);
-    return () => window.removeEventListener("pos_bluetooth_status", handleBtStatus);
+
+    const handleReceiptStatus = (e: any) => {
+      setReceiptPrinterName(e.detail?.name ?? getConnectedBluetoothPrinterName());
+    };
+
+    window.addEventListener("pos_bluetooth_label_status", handleLabelStatus);
+    window.addEventListener("pos_bluetooth_status", handleReceiptStatus);
+    return () => {
+      window.removeEventListener("pos_bluetooth_label_status", handleLabelStatus);
+      window.removeEventListener("pos_bluetooth_status", handleReceiptStatus);
+    };
   }, []);
 
   // Simpan library templates ke localStorage
@@ -511,48 +536,63 @@ export default function LabelDesigner() {
     toast.success(`Template "${newTpl.name}" siap digunakan!`);
   };
 
-  // 🔌 Handler Koneksi Bluetooth
+  // Deteksi jika perangkat yang terhubung diduga printer struk kasir
+  const isSuspectedReceiptPrinter = useMemo(() => {
+    const name = (btPrinterName || "").toLowerCase();
+    return (
+      name.includes("pos-58") ||
+      name.includes("pos-80") ||
+      name.includes("58mm") ||
+      name.includes("80mm") ||
+      name.includes("rpp02") ||
+      name.includes("goojprt") ||
+      name.includes("eppos") ||
+      name.includes("receipt")
+    );
+  }, [btPrinterName]);
+
+  // 🔌 Handler Koneksi Bluetooth Khusus Printer Label
   const handleConnectBt = async () => {
     setIsConnectingBt(true);
     try {
-      const res = await connectBluetoothPrinter();
+      const res = await connectBluetoothLabelPrinter();
       if (res.success) {
         setIsBtConnected(true);
-        setBtPrinterName(res.name || "Printer Bluetooth");
-        toast.success(`Terhubung ke ${res.name || "Printer Bluetooth"}`);
+        setBtPrinterName(res.name || "Printer Label Bluetooth");
+        toast.success(`Terhubung ke Printer Label: ${res.name || "Printer Label"}`);
       } else {
         toast.info(res.message);
       }
     } catch (err: any) {
-      toast.error("Gagal menghubungkan Bluetooth: " + (err?.message || "Pastikan Bluetooth aktif"));
+      toast.error("Gagal menghubungkan Printer Label: " + (err?.message || "Pastikan Bluetooth aktif"));
     } finally {
       setIsConnectingBt(false);
     }
   };
 
-  // ❌ Handler Putus Bluetooth
+  // ❌ Handler Putus Bluetooth Printer Label
   const handleDisconnectBt = () => {
-    disconnectBluetoothPrinter();
+    disconnectBluetoothLabelPrinter();
     setIsBtConnected(false);
     setBtPrinterName(null);
-    toast.info("Koneksi printer Bluetooth diputuskan.");
+    toast.info("Koneksi Printer Label Bluetooth diputuskan.");
   };
 
-  // 🖨️ Handler Cetak Langsung via Bluetooth (Format TSPL)
+  // 🖨️ Handler Cetak Langsung ke Printer Label via Bluetooth (Format TSPL)
   const handlePrintBluetooth = async () => {
     setIsPrintingBt(true);
     try {
-      let connected = isBluetoothPrinterConnected();
+      let connected = isBluetoothLabelPrinterConnected();
       if (!connected) {
-        toast.info("Menghubungkan ke printer Bluetooth...");
-        const res = await connectBluetoothPrinter();
+        toast.info("Menghubungkan ke Printer Label Bluetooth...");
+        const res = await connectBluetoothLabelPrinter();
         if (!res.success) {
-          toast.error(res.message || "Gagal menghubungkan printer Bluetooth");
+          toast.error(res.message || "Gagal menghubungkan Printer Label Bluetooth");
           return;
         }
         connected = true;
         setIsBtConnected(true);
-        setBtPrinterName(res.name || "Printer Bluetooth");
+        setBtPrinterName(res.name || "Printer Label Bluetooth");
       }
 
       // Bangun antrean keping stiker sesuai jumlah baris yang dipilih
@@ -567,20 +607,20 @@ export default function LabelDesigner() {
         }
       }
 
-      toast.info("Mengirim format TSPL ke printer Bluetooth...");
+      toast.info("Mengirim perintah TSPL stiker ke Printer Label...");
       const tsplData = generateTsplLabel(printItems, stickerOptions);
-      const success = await sendBluetoothPrintData(tsplData);
+      const success = await sendBluetoothLabelPrintData(tsplData);
 
       if (success) {
-        toast.success("Stiker berhasil dicetak via Bluetooth!", {
-          description: `${rows} baris (${activeTemplate.columns * rows} stiker) terkirim ke ${btPrinterName || "Printer"}.`,
+        toast.success("Stiker berhasil dicetak ke Printer Label!", {
+          description: `${rows} baris (${activeTemplate.columns * rows} stiker) terkirim ke ${btPrinterName || "Printer Label"}.`,
         });
       } else {
-        toast.error("Gagal mengirim data cetak ke Bluetooth. Coba hubungkan ulang.");
+        toast.error("Gagal mengirim data ke Printer Label. Coba hubungkan ulang.");
       }
     } catch (err: any) {
       console.error("Bluetooth print error:", err);
-      toast.error("Error cetak Bluetooth: " + (err?.message || "Periksa koneksi Bluetooth"));
+      toast.error("Error cetak Printer Label: " + (err?.message || "Periksa koneksi Bluetooth"));
     } finally {
       setIsPrintingBt(false);
     }
@@ -648,16 +688,16 @@ export default function LabelDesigner() {
 
         {/* Action Buttons Top */}
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Status Badge Bluetooth */}
+          {/* Status Badge Printer Label Bluetooth */}
           {isBtConnected ? (
-            <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-xs">
+            <div className="flex items-center gap-2 bg-purple-500/10 border border-purple-500/30 text-purple-700 dark:text-purple-300 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <Bluetooth className="w-4 h-4" />
-              <span className="max-w-[130px] truncate">{btPrinterName || "Printer BT"}</span>
+              <Tag className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+              <span className="max-w-[140px] truncate">Label: {btPrinterName || "Printer Label"}</span>
               <button
                 type="button"
                 onClick={handleDisconnectBt}
-                title="Putuskan Bluetooth"
+                title="Putuskan Printer Label"
                 className="text-muted-foreground hover:text-destructive ml-1 p-0.5"
               >
                 <Unplug className="w-3.5 h-3.5" />
@@ -669,10 +709,10 @@ export default function LabelDesigner() {
               size="sm"
               onClick={handleConnectBt}
               disabled={isConnectingBt}
-              className="gap-1.5 h-9 text-xs border-blue-200 text-blue-700 bg-blue-50/50 hover:bg-blue-100/70 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-900"
+              className="gap-1.5 h-9 text-xs border-purple-200 text-purple-700 bg-purple-50/50 hover:bg-purple-100/70 dark:bg-purple-950/30 dark:text-purple-300 dark:border-purple-900"
             >
-              {isConnectingBt ? <Loader2 className="w-4 h-4 animate-spin text-blue-600" /> : <Bluetooth className="w-4 h-4 text-blue-600" />}
-              <span>{isConnectingBt ? "Memindai..." : "Hubungkan BT"}</span>
+              {isConnectingBt ? <Loader2 className="w-4 h-4 animate-spin text-purple-600" /> : <Tag className="w-4 h-4 text-purple-600" />}
+              <span>{isConnectingBt ? "Memindai..." : "Hubungkan Printer Label"}</span>
             </Button>
           )}
 
@@ -686,15 +726,15 @@ export default function LabelDesigner() {
             <span>Template Baru</span>
           </Button>
 
-          {/* Tombol Cetak Bluetooth */}
+          {/* Tombol Cetak Printer Label */}
           <Button
             size="sm"
             onClick={handlePrintBluetooth}
             disabled={isPrintingBt}
-            className="gap-1.5 h-9 bg-blue-600 hover:bg-blue-700 text-white shadow-xs font-semibold"
+            className="gap-1.5 h-9 bg-purple-600 hover:bg-purple-700 text-white shadow-xs font-semibold"
           >
-            {isPrintingBt ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bluetooth className="w-4 h-4" />}
-            <span>{isPrintingBt ? "Mengirim..." : "Cetak Bluetooth"}</span>
+            {isPrintingBt ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+            <span>{isPrintingBt ? "Mengirim..." : "Cetak ke Printer Label"}</span>
           </Button>
 
           {/* Tombol Cetak Browser */}
@@ -1099,36 +1139,37 @@ export default function LabelDesigner() {
             </CardContent>
           </Card>
 
-          {/* Card: Direct Bluetooth Printing Panel */}
-          <Card className="rounded-2xl border border-blue-200 dark:border-blue-900/60 bg-blue-50/30 dark:bg-blue-950/20 shadow-xs">
+          {/* Card: Direct Bluetooth Printing Panel Khusus Printer Label */}
+          <Card className="rounded-2xl border-2 border-purple-200 dark:border-purple-900/60 bg-gradient-to-br from-purple-50/40 via-background to-background dark:from-purple-950/20 shadow-xs">
             <CardHeader className="p-4 pb-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
-                  <Bluetooth className="w-4 h-4" />
-                  <CardTitle className="text-sm font-semibold">Cetak Langsung via Bluetooth</CardTitle>
+                <div className="flex items-center gap-2 text-purple-700 dark:text-purple-400">
+                  <Tag className="w-4 h-4" />
+                  <CardTitle className="text-sm font-semibold">Cetak ke Printer Label (Bluetooth)</CardTitle>
                 </div>
-                <Badge variant="outline" className="text-[10px] font-mono border-blue-300 text-blue-600 dark:border-blue-700">
-                  Format TSPL
+                <Badge variant="secondary" className="text-[10px] font-semibold bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300">
+                  Khusus Stiker TSPL
                 </Badge>
               </div>
               <CardDescription className="text-xs">
-                Cetak tanpa dialog sistem browser, langsung dikirim via Web Bluetooth ke printer thermal barcode.
+                Khusus untuk <strong>Printer Label Barcode Roll</strong> (Xprinter XP-420B, XP-365B, Niimbot, Kassen, Panda Label). Jalur terpisah dari printer struk kasir.
               </CardDescription>
             </CardHeader>
-            <CardContent className="p-4 pt-0 space-y-3">
-              <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border text-xs">
+            <CardContent className="p-4 pt-0 space-y-3.5">
+              {/* Status Device */}
+              <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-card border text-xs shadow-2xs">
                 <div className="flex items-center gap-2.5">
                   <span
-                    className={`w-2.5 h-2.5 rounded-full ${
+                    className={`w-2.5 h-2.5 rounded-full shrink-0 ${
                       isBtConnected ? "bg-emerald-500 animate-pulse" : "bg-slate-300 dark:bg-slate-600"
                     }`}
                   />
                   <div>
                     <div className="font-semibold text-foreground">
-                      {isBtConnected ? btPrinterName || "Printer Bluetooth" : "Belum Terhubung"}
+                      {isBtConnected ? btPrinterName || "Printer Label Bluetooth" : "Printer Label Belum Terhubung"}
                     </div>
                     <div className="text-[10px] text-muted-foreground">
-                      {isBtConnected ? "Siap menerima perintah TSPL" : "Nyalakan Bluetooth pada printer"}
+                      {isBtConnected ? "Siap cetak stiker format TSPL (203 DPI)" : "Nyalakan Bluetooth pada printer label Anda"}
                     </div>
                   </div>
                 </div>
@@ -1148,20 +1189,40 @@ export default function LabelDesigner() {
                     size="sm"
                     onClick={handleConnectBt}
                     disabled={isConnectingBt}
-                    className="h-8 px-3 text-xs gap-1.5 border-blue-300 text-blue-600 hover:bg-blue-50"
+                    className="h-8 px-3 text-xs gap-1.5 border-purple-300 text-purple-700 hover:bg-purple-50 dark:border-purple-800 dark:text-purple-300"
                   >
-                    {isConnectingBt ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Bluetooth className="w-3.5 h-3.5" />}
+                    {isConnectingBt ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Tag className="w-3.5 h-3.5" />}
                     <span>{isConnectingBt ? "Memindai..." : "Hubungkan"}</span>
                   </Button>
                 )}
               </div>
+
+              {/* Warning jika perangkat yang terhubung diduga printer struk kasir */}
+              {isBtConnected && isSuspectedReceiptPrinter && (
+                <div className="p-2.5 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 text-[11px] leading-relaxed flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <strong>Perhatian:</strong> Perangkat <code>{btPrinterName}</code> terdeteksi sebagai printer struk kasir. Pastikan Anda memilih <strong>Printer Label Stiker Roll</strong> (seperti Xprinter XP-420B, XP-365B, Kassen, Niimbot) agar stiker tercetak pas pada batas kertas roll dan tidak melompat.
+                  </div>
+                </div>
+              )}
+
+              {/* Info jika printer struk kasir terhubung di kasir tapi printer label belum */}
+              {!isBtConnected && receiptPrinterName && (
+                <div className="p-2.5 rounded-xl border border-blue-200 bg-blue-50/60 dark:bg-blue-950/30 text-blue-800 dark:text-blue-300 text-[11px] leading-relaxed flex items-start gap-2">
+                  <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                  <div>
+                    Di kasir saat ini terhubung <strong>{receiptPrinterName}</strong> (Printer Struk Kasir). Silakan klik <strong>"Hubungkan"</strong> di atas untuk memasangkan Printer Label stiker Anda secara mandiri.
+                  </div>
+                </div>
+              )}
 
               {/* Selector Jumlah Baris Cetak */}
               <div className="flex items-center justify-between gap-3 pt-1">
                 <div className="space-y-0.5">
                   <Label className="text-xs font-medium">Jumlah Baris Cetak:</Label>
                   <p className="text-[10px] text-muted-foreground">
-                    Total: {activeTemplate.columns * testPrintRows} stiker
+                    Total: {activeTemplate.columns * testPrintRows} stiker ({activeTemplate.columns} kolom x {testPrintRows} baris)
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -1193,15 +1254,15 @@ export default function LabelDesigner() {
               <Button
                 onClick={handlePrintBluetooth}
                 disabled={isPrintingBt}
-                className="w-full h-10 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-xs gap-2 shadow-xs"
+                className="w-full h-10 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl text-xs gap-2 shadow-xs"
               >
                 {isPrintingBt ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
-                  <Bluetooth className="w-4 h-4" />
+                  <Tag className="w-4 h-4" />
                 )}
                 <span>
-                  {isPrintingBt ? "Mengirim Data ke Printer..." : "Cetak Stiker via Bluetooth"}
+                  {isPrintingBt ? "Mengirim Data ke Printer Label..." : "Cetak Stiker ke Printer Label"}
                 </span>
               </Button>
             </CardContent>

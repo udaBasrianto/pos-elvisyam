@@ -422,9 +422,26 @@ import {
   sendBluetoothPrintData,
   sendNiimbotPackets,
   disconnectBluetoothPrinter,
+  connectBluetoothLabelPrinter,
+  disconnectBluetoothLabelPrinter,
+  isBluetoothLabelPrinterConnected,
+  getConnectedBluetoothLabelPrinterName,
+  autoConnectBluetoothLabelPrinter,
+  sendBluetoothLabelPrintData,
 } from './bluetoothPrinter';
 
-export { autoConnectBluetoothPrinter, isBluetoothPrinterConnected, getConnectedBluetoothPrinterName, disconnectBluetoothPrinter };
+export {
+  autoConnectBluetoothPrinter,
+  isBluetoothPrinterConnected,
+  getConnectedBluetoothPrinterName,
+  disconnectBluetoothPrinter,
+  connectBluetoothLabelPrinter,
+  disconnectBluetoothLabelPrinter,
+  isBluetoothLabelPrinterConnected,
+  getConnectedBluetoothLabelPrinterName,
+  autoConnectBluetoothLabelPrinter,
+  sendBluetoothLabelPrintData,
+};
 
 export async function connectBluetoothPrinter(): Promise<{ success: boolean; name?: string; message: string }> {
   return btConnect();
@@ -522,11 +539,17 @@ export async function printHardwareLabel(
       data = generateEscPosLabel(product, opts);
     }
 
+    if (isBluetoothLabelPrinterConnected()) {
+      return await sendBluetoothLabelPrintData(data);
+    }
     return await sendToPrinter(data, targetType);
   } catch (err) {
     console.warn("Primary label print error, attempting fallback raster bitmap:", err);
     try {
       const fallbackData = await generateRasterLabelBitmap(product, opts, isTspl ? 'tspl' : 'escpos');
+      if (isBluetoothLabelPrinterConnected()) {
+        return await sendBluetoothLabelPrintData(fallbackData);
+      }
       return await sendToPrinter(fallbackData, targetType);
     } catch (e2) {
       console.error("Label print fallback failed:", e2);
