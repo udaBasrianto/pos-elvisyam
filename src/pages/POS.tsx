@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +39,10 @@ import {
   LayoutGrid,
   List,
   Filter,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import ReceiptDialog from "@/components/ReceiptDialog";
 import { UniversalBarcodeScanner } from "@/components/UniversalBarcodeScanner";
@@ -265,20 +269,66 @@ const POS = () => {
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
   const [tempPrice, setTempPrice] = useState<string>("");
 
-  const products = state.products;
-  const categories = ["semua", ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))];
+  // Pagination state for high-performance rendering (e.g. 4,000+ products)
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(24);
 
-  const filteredProducts = products.filter(product => {
-    if (product.isActive === false) return false;
-    const q = searchQuery.toLowerCase().trim();
-    const matchesSearch = 
-      product.name.toLowerCase().includes(q) ||
-      (product.barcode && product.barcode.toLowerCase().includes(q)) ||
-      (product.sku && product.sku.toLowerCase().includes(q)) ||
-      (product.brand && product.brand.toLowerCase().includes(q));
-    const matchesCategory = selectedCategory === "semua" || product.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const products = state.products;
+  const categories = useMemo(() => {
+    return ["semua", ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))];
+  }, [products]);
+
+  const filteredProducts = useMemo(() => {
+    return products.filter(product => {
+      if (product.isActive === false) return false;
+      const q = searchQuery.toLowerCase().trim();
+      const matchesSearch = 
+        !q ||
+        product.name.toLowerCase().includes(q) ||
+        (product.barcode && product.barcode.toLowerCase().includes(q)) ||
+        (product.sku && product.sku.toLowerCase().includes(q)) ||
+        (product.brand && product.brand.toLowerCase().includes(q));
+      const matchesCategory = selectedCategory === "semua" || product.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [products, searchQuery, selectedCategory]);
+
+  // Reset to page 1 whenever search query, category, or items per page change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCategory, itemsPerPage]);
+
+  const totalItemsCount = filteredProducts.length;
+  const totalPages = Math.max(1, Math.ceil(totalItemsCount / itemsPerPage));
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredProducts.slice(start, start + itemsPerPage);
+  }, [filteredProducts, currentPage, itemsPerPage]);
+
+  const startItemIdx = totalItemsCount === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+  const endItemIdx = Math.min(currentPage * itemsPerPage, totalItemsCount);
+
+  const getPageNumbers = (current: number, total: number) => {
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    const pages: (number | string)[] = [];
+    if (current <= 3) {
+      pages.push(1, 2, 3, 4, '...', total);
+    } else if (current >= total - 2) {
+      pages.push(1, '...', total - 3, total - 2, total - 1, total);
+    } else {
+      pages.push(1, '...', current - 1, current, current + 1, '...', total);
+    }
+    return pages;
+  };
 
   const handleSearchKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if ((e.key === 'Enter' || e.key === 'NumpadEnter') && searchQuery.trim()) {
@@ -1012,6 +1062,58 @@ const POS = () => {
             </div>
           </div>
 
+          {/* Category Quick Scroll Tabs */}
+          {categories.length > 1 && (
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none py-0.5">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer ${
+                    selectedCategory === cat
+                      ? 'bg-primary text-white shadow-xs font-bold'
+                      : 'bg-card hover:bg-muted text-muted-foreground hover:text-foreground border border-border/70'
+                  }`}
+                >
+                  {cat === 'semua' ? '✨ Semua' : cat}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Sub-bar: Item count summary & Items Per Page Selector */}
+          <div className="flex items-center justify-between text-xs px-1 text-muted-foreground">
+            <span className="font-medium">
+              Total <span className="font-bold text-foreground">{totalItemsCount.toLocaleString('id-ID')}</span> produk
+              {searchQuery.trim() && <span className="text-primary ml-1 font-semibold">(difilter)</span>}
+              {totalItemsCount > 0 && (
+                <span className="hidden sm:inline ml-1 text-muted-foreground/80">
+                  • Hal. {currentPage} dari {totalPages}
+                </span>
+              )}
+            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-muted-foreground hidden sm:inline">Per halaman:</span>
+              <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border border-border/50 text-[11px] font-bold">
+                {[24, 48, 72, 96].map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    onClick={() => setItemsPerPage(size)}
+                    className={`px-2 py-0.5 rounded-md transition-all ${
+                      itemsPerPage === size
+                        ? 'bg-card text-primary font-bold shadow-2xs'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
           {/* Products Grid / List */}
           {filteredProducts.length === 0 ? (
             <Card className="bg-card border-border/80 shadow-xs rounded-2xl">
@@ -1022,7 +1124,7 @@ const POS = () => {
             </Card>
           ) : viewMode === 'list' ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {filteredProducts.map((product) => (
+              {paginatedProducts.map((product) => (
                 <div
                   key={product.id}
                   className="bg-card rounded-2xl border border-border/80 hover:border-primary/50 shadow-2xs hover:shadow-xs transition-all cursor-pointer group p-3 flex items-center justify-between gap-3"
@@ -1062,7 +1164,7 @@ const POS = () => {
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3.5">
-              {filteredProducts.map((product) => (
+              {paginatedProducts.map((product) => (
                 <div
                   key={product.id}
                   className="bg-card rounded-2xl border border-border/80 hover:border-primary/50 shadow-2xs hover:shadow-md transition-all duration-200 cursor-pointer group flex flex-col justify-between overflow-hidden p-2.5 sm:p-3"
@@ -1098,6 +1200,80 @@ const POS = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 mt-2 border-t border-border/60 text-xs text-muted-foreground">
+              <div className="text-xs font-medium">
+                Menampilkan <span className="font-bold text-foreground">{startItemIdx}</span>–<span className="font-bold text-foreground">{endItemIdx}</span> dari <span className="font-bold text-foreground">{totalItemsCount.toLocaleString('id-ID')}</span> produk
+              </div>
+              <div className="flex items-center gap-1 flex-wrap justify-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  className="h-8 w-8 p-0 rounded-lg"
+                  title="Halaman Pertama"
+                >
+                  <ChevronsLeft className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="h-8 px-2.5 rounded-lg gap-1"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline text-xs">Sebelumnya</span>
+                </Button>
+
+                <div className="flex items-center gap-1">
+                  {getPageNumbers(currentPage, totalPages).map((p, idx) =>
+                    p === '...' ? (
+                      <span key={`ellipsis-${idx}`} className="px-1.5 text-muted-foreground text-xs">
+                        …
+                      </span>
+                    ) : (
+                      <Button
+                        key={`page-${p}`}
+                        variant={currentPage === p ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setCurrentPage(p as number)}
+                        className={`h-8 w-8 p-0 rounded-lg text-xs font-semibold ${
+                          currentPage === p ? 'shadow-xs' : 'hover:border-primary/50'
+                        }`}
+                      >
+                        {p}
+                      </Button>
+                    )
+                  )}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="h-8 px-2.5 rounded-lg gap-1"
+                >
+                  <span className="hidden sm:inline text-xs">Selanjutnya</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className="h-8 w-8 p-0 rounded-lg"
+                  title="Halaman Terakhir"
+                >
+                  <ChevronsRight className="w-3.5 h-3.5" />
+                </Button>
+              </div>
             </div>
           )}
         </div>

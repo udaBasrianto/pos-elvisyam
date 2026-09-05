@@ -462,6 +462,7 @@ function LabelTab() {
         presetId: '40x30',
         widthMm: 40,
         heightMm: 30,
+        columns: 1,
         copies: 1,
         showStoreName: true,
         showName: true,

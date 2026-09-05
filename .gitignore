@@ -48,6 +48,7 @@ backend/uploads
 *.gz
 *.sql
 !tokoryo_data.sql
+produk_ryo.*
 
 # Editor directories and files
 .vscode/*

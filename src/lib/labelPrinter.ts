@@ -158,13 +158,14 @@ export interface LabelProductData {
   storeName?: string;
   unit?: string;
   expiryDate?: string;
+  copies?: number;
 }
 
 export interface LabelPrintOptions {
   presetId: string;
   widthMm: number;
   heightMm: number;
-  columns: number; // 1, 2, 3, 4, 5 (Horizontal columns per row)
+  columns?: number; // 1, 2, 3, 4, 5 (Horizontal columns per row, default 1)
   gapHorizontalMm?: number; // Gap horizontal antar kolom stiker (default 2mm)
   gapVerticalMm?: number; // Gap vertikal antar baris stiker (default 2mm)
   marginOuterMm?: number; // Margin tepi luar kertas kiri/kanan (default 1.5mm)
@@ -174,6 +175,7 @@ export interface LabelPrintOptions {
   copies: number;
   showStoreName: boolean;
   showName: boolean;
+  showProductName?: boolean; // Alias untuk showName kompatibilitas desainer template
   productNameTwoLines?: boolean; // Izinkan nama produk menjadi 2 baris jika nama produk panjang
   productNameMaxLines?: number; // Maksimal baris nama produk (1 atau 2, default 2)
   showBarcode: boolean;

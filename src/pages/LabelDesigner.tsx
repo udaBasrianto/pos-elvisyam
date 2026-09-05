@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  AlertCircle,
   LayoutTemplate,
   Plus,
   Printer,
@@ -448,6 +449,7 @@ export default function LabelDesigner() {
       gapHorizontalMm: activeTemplate.colSpacingMm,
       gapVerticalMm: activeTemplate.rowSpacingMm,
       showStoreName: activeTemplate.showStoreName,
+      showName: activeTemplate.showProductName,
       showProductName: activeTemplate.showProductName,
       showBarcode: activeTemplate.showBarcode,
       showBarcodeText: activeTemplate.showBarcodeText,
@@ -455,7 +457,7 @@ export default function LabelDesigner() {
       showSku: activeTemplate.showSku,
       showCategory: activeTemplate.showCategory,
       showBrand: activeTemplate.showBrand,
-      barcodeWidthPercent: 100,
+      barcodeAreaWidthPercent: 100,
     };
   }, [activeTemplate]);
 
@@ -470,7 +472,7 @@ export default function LabelDesigner() {
       gapHorizontalMm: activeTemplate.colSpacingMm,
       gapVerticalMm: activeTemplate.rowSpacingMm,
       showStoreName: activeTemplate.showStoreName,
-      showProductName: activeTemplate.showProductName,
+      showName: activeTemplate.showProductName,
       showBarcode: activeTemplate.showBarcode,
       showBarcodeText: activeTemplate.showBarcodeText,
       showPrice: activeTemplate.showPrice,
@@ -637,13 +639,14 @@ export default function LabelDesigner() {
       gapHorizontalMm: activeTemplate.colSpacingMm,
       gapVerticalMm: activeTemplate.rowSpacingMm,
       showStoreName: activeTemplate.showStoreName,
-      showProductName: activeTemplate.showProductName,
+      showName: activeTemplate.showProductName,
       showBarcode: activeTemplate.showBarcode,
       showBarcodeText: activeTemplate.showBarcodeText,
       showPrice: activeTemplate.showPrice,
       showSku: activeTemplate.showSku,
       showCategory: activeTemplate.showCategory,
       showBrand: activeTemplate.showBrand,
+      customStoreName: state.settings?.businessName || state.settings?.store_name || "Toko Saya",
     };
 
     const testItems: { product: LabelProductData; count: number }[] = [];
@@ -653,6 +656,7 @@ export default function LabelDesigner() {
         testItems.push({
           product: {
             ...previewProduct,
+            storeName: state.settings?.businessName || state.settings?.store_name || "Toko Saya",
             name: activeTemplate.columns > 1 ? `${previewProduct.name} #${i + 1}` : previewProduct.name,
           },
           count: 1,
@@ -660,7 +664,7 @@ export default function LabelDesigner() {
       }
     }
 
-    triggerBrowserLabelPrint(testItems, testOptions, state.settings?.store_name || "Toko Saya");
+    triggerBrowserLabelPrint(testItems, testOptions);
   };
 
   return (
@@ -1509,7 +1513,7 @@ export default function LabelDesigner() {
                               <div className="w-full h-full p-1 flex flex-col items-center justify-between text-center overflow-hidden leading-tight">
                                 {activeTemplate.showStoreName && (
                                   <div className="text-[9px] font-bold text-slate-800 tracking-wider uppercase truncate w-full">
-                                    {state.settings?.store_name || "TOKORYO POS"}
+                                    {state.settings?.businessName || state.settings?.store_name || "TOKORYO POS"}
                                   </div>
                                 )}
 

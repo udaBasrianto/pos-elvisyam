@@ -55,6 +55,7 @@ export interface PrinterConfig {
   cashDrawerPin?: 0 | 1;
   cutPaper?: boolean;
   brandPreset?: string;
+  printerName?: string;
 }
 
 export interface ScannerConfig {
@@ -70,6 +71,7 @@ export interface HardwareState {
   cashDrawerEnabled: boolean;
   labelPrinterConnected: boolean;
   customerDisplayEnabled: boolean;
+  printerName?: string;
 }
 
 const STORAGE_KEY = 'pos_hardware_config';
@@ -257,7 +259,7 @@ export function buildReceipt(data: ReceiptData): Uint8Array {
   // Optional Vector QR Code (for QRIS or Digital Struk Link)
   if (data.qrData) {
     push(CMD.ALIGN_CENTER);
-    push(generateEscPosQrCode(data.qrData, cols === 80 ? 6 : 5, 'M'));
+    push(generateEscPosQrCode(data.qrData, cols === 48 ? 6 : 5, 'M'));
     push(line(''));
   }
 
@@ -567,7 +569,7 @@ export async function openCashDrawer(pin: 0 | 1 = 0, type: PrinterConnectionType
   return sent;
 }
 
-export { triggerDrawerDirect as triggerCashDrawer };
+export { openCashDrawer as triggerCashDrawer };
 
 export function loadHardwareConfig(): HardwareState {
   try {

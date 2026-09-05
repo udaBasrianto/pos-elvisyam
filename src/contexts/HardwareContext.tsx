@@ -254,12 +254,14 @@ export function HardwareProvider({ children }: { children: React.ReactNode }) {
           presetId: '40x30',
           widthMm: 40,
           heightMm: 30,
+          columns: 1,
           copies: 1,
           showStoreName: true,
           showName: true,
           showBarcode: true,
           showBarcodeText: true,
           showPrice: true,
+          showSku: false,
         }, active);
         if (ok) {
           toast.success('🏷️ Test stiker berhasil dicetak ke Xprinter XP-420B!');

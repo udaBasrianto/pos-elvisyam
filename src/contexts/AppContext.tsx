@@ -100,6 +100,8 @@ export interface TransactionItem {
 
 export interface Settings {
   businessName: string;
+  business_name?: string;
+  store_name?: string;
   businessAddress: string;
   businessPhone: string;
   businessEmail: string;
@@ -385,6 +387,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         customDomain: settingsData.custom_domain || '',
         barcode_settings: settingsData.barcode_settings || '',
         barcodeSettings: settingsData.barcode_settings || '',
+        // Social media & storefront fields
+        instagram_url: settingsData.instagram_url || '',
+        facebook_url: settingsData.facebook_url || '',
+        whatsapp_number: settingsData.whatsapp_number || '',
+        footer_text: settingsData.footer_text || '',
+        store_reviews: settingsData.store_reviews || '',
+        store_features: settingsData.store_features || '',
       };
 
       if (settings.theme_color) {
@@ -428,7 +437,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               products: cachedProducts, 
               customers: cachedCustomers, 
               transactions: [], // Not cached locally to prevent large data
-              settings: initialState.settings 
+              settings: state.settings // Preserve current settings when offline instead of resetting to defaults
             } 
           });
           toast.warning('Anda sedang offline. Menampilkan data lokal.');
@@ -442,7 +451,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
-  }, [user]);
+  }, [user?.id]);
 
   const syncOfflineData = useCallback(async () => {
     try {
@@ -529,7 +538,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         favicon_url: settings.faviconUrl || settings.favicon_url || '',
         description: settings.description || '',
         custom_domain: settings.custom_domain || settings.customDomain || '',
-        barcode_settings: settings.barcode_settings || settings.barcodeSettings || ''
+        barcode_settings: settings.barcode_settings || settings.barcodeSettings || '',
+        // Social media & storefront fields — previously missing, causing data loss on save
+        instagram_url: settings.instagram_url || '',
+        facebook_url: settings.facebook_url || '',
+        whatsapp_number: settings.whatsapp_number || '',
+        footer_text: settings.footer_text || '',
+        store_reviews: settings.store_reviews || '',
+        store_features: settings.store_features || '',
       });
       if (settings.theme_color || settings.themeColor) {
         localStorage.setItem('pos-theme-color', settings.theme_color || settings.themeColor || 'emerald');

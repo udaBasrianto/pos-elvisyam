@@ -49,7 +49,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useHardware } from '@/contexts/HardwareContext';
-import { useApp } from '@/contexts/AppContext';
+import { useApp, type Product } from '@/contexts/AppContext';
 import { api } from '@/lib/api';
 import {
   LABEL_PRESETS,
@@ -73,11 +73,13 @@ import {
   autoConnectBluetoothPrinter,
   isBluetoothPrinterConnected,
   getConnectedBluetoothPrinterName,
+  getConnectedBluetoothLabelPrinterName,
   detectPrinterPaper,
 } from '@/lib/bluetoothPrinter';
 import {
   connectUsbPrinter,
   connectSerialPrinter,
+  PRINTER_BRAND_PRESETS,
 } from '@/lib/hardwareManager';
 
 export interface BarcodeConfigViewProps {
@@ -87,7 +89,7 @@ export interface BarcodeConfigViewProps {
   isDialog?: boolean;
 }
 
-export const ELEMENT_CONFIG: Record<
+const ELEMENT_CONFIG: Record<
   LabelElementKey,
   { label: string; icon: React.ComponentType<{ className?: string }>; desc: string }
 > = {
@@ -102,7 +104,7 @@ export const ELEMENT_CONFIG: Record<
   brand: { label: 'Merek', icon: Tag, desc: 'Merek / Brand produk' },
 };
 
-export interface TextElementFontConfig {
+interface TextElementFontConfig {
   key: LabelElementKey;
   label: string;
   field: keyof LabelPrintOptions;
@@ -116,7 +118,7 @@ export interface TextElementFontConfig {
   quickSizes: number[];
 }
 
-export const TEXT_ELEMENT_FONT_CONFIGS: TextElementFontConfig[] = [
+const TEXT_ELEMENT_FONT_CONFIGS: TextElementFontConfig[] = [
   {
     key: 'productName',
     label: 'Nama Produk',
@@ -229,7 +231,7 @@ export function BarcodeConfigView({
   onClose,
   isDialog = false,
 }: BarcodeConfigViewProps) {
-  const { state } = useApp();
+  const { state, saveSettings } = useApp();
   const hardware = useHardware();
 
   // 1. Label Printing Configuration State (Auto-Fixed with user-saved defaults preserved)
@@ -240,9 +242,12 @@ export function BarcodeConfigView({
       if (state.settings?.barcode_settings) {
         savedBackend = JSON.parse(state.settings.barcode_settings);
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('Gagal membaca barcode_settings dari state:', e);
+    }
 
-    const saved = { ...savedBackend, ...savedLocal };
+    // Server/database settings take precedence over local defaults when present
+    const saved = { ...savedLocal, ...(savedBackend || {}) };
     const defaults = autoFixLabelDimensions(saved?.presetId || '33x15-3col');
     return {
       ...defaults,
@@ -293,8 +298,7 @@ export function BarcodeConfigView({
     if (state.settings?.barcode_settings) {
       try {
         const backendOpts = JSON.parse(state.settings.barcode_settings);
-        const localSavedRaw = localStorage.getItem('pos_label_options');
-        if (!localSavedRaw && backendOpts && typeof backendOpts === 'object') {
+        if (backendOpts && typeof backendOpts === 'object') {
           setOptions((prev) => {
             const next = { ...prev, ...backendOpts };
             saveLabelOptions(next);
@@ -396,6 +400,19 @@ export function BarcodeConfigView({
     ).length;
   }, [options.elementPositions]);
 
+  // Helper to determine active printer display name
+  const resolvePrinterName = useCallback(() => {
+    return (
+      getConnectedBluetoothLabelPrinterName() ||
+      getConnectedBluetoothPrinterName() ||
+      hardware.lastDetectionReport?.printer.name ||
+      PRINTER_BRAND_PRESETS.find((p) => p.id === hardware.config.printer.brandPreset)?.name ||
+      hardware.config.printer?.printerName ||
+      hardware.config.printerName ||
+      'Printer Thermal Terhubung'
+    );
+  }, [hardware.lastDetectionReport, hardware.config.printer.brandPreset, hardware.config.printer.printerName, hardware.config.printerName]);
+
   // 2. Real Hardware Connection State
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [printerInfo, setPrinterInfo] = useState<{
@@ -404,14 +421,26 @@ export function BarcodeConfigView({
     connected: boolean;
   }>(() => {
     const isBt = isBluetoothPrinterConnected();
-    const btName = getConnectedBluetoothPrinterName();
+    const btName = getConnectedBluetoothLabelPrinterName() || getConnectedBluetoothPrinterName();
     if (isBt && btName) {
       return { name: btName, type: 'bluetooth', connected: true };
     }
     if (hardware.printerStatus === 'connected' && hardware.activePrinterType !== 'none') {
+      const printerType: 'bluetooth' | 'usb' | 'serial' | 'system' =
+        hardware.activePrinterType === 'bluetooth' ||
+        hardware.activePrinterType === 'usb' ||
+        hardware.activePrinterType === 'serial'
+          ? hardware.activePrinterType
+          : 'usb';
       return {
-        name: hardware.config.printerName || 'Printer Thermal Terhubung',
-        type: (hardware.activePrinterType as any) || 'usb',
+        name:
+          btName ||
+          hardware.lastDetectionReport?.printer.name ||
+          PRINTER_BRAND_PRESETS.find((p) => p.id === hardware.config.printer.brandPreset)?.name ||
+          hardware.config.printer?.printerName ||
+          hardware.config.printerName ||
+          'Printer Thermal Terhubung',
+        type: printerType,
         connected: true,
       };
     }
@@ -421,6 +450,23 @@ export function BarcodeConfigView({
       connected: false,
     };
   });
+
+  // Synchronize printerInfo when global hardware status updates
+  useEffect(() => {
+    if (hardware.printerStatus === 'connected' && hardware.activePrinterType !== 'none') {
+      const printerType: 'bluetooth' | 'usb' | 'serial' | 'system' =
+        hardware.activePrinterType === 'bluetooth' ||
+        hardware.activePrinterType === 'usb' ||
+        hardware.activePrinterType === 'serial'
+          ? hardware.activePrinterType
+          : 'usb';
+      const name = resolvePrinterName();
+      setPrinterInfo((prev) => {
+        if (prev.connected && prev.name === name && prev.type === printerType) return prev;
+        return { name, type: printerType, connected: true };
+      });
+    }
+  }, [hardware.printerStatus, hardware.activePrinterType, resolvePrinterName]);
 
   // 3. Apply Auto-Sync & Fix Dimensions (preserving custom positions and order)
   const applyAutoSyncAndFix = useCallback((w: number, h: number, cols: number, presetId?: string) => {
@@ -445,8 +491,9 @@ export function BarcodeConfigView({
 
   // ⚡ LISTEN FOR REAL-TIME PRINTER CONNECTION & PAPER DETECTION EVENTS
   useEffect(() => {
-    const handleBtStatus = (e: any) => {
-      const detail = e.detail;
+    const handleBtStatus = (e: Event) => {
+      const customEvent = e as CustomEvent<{ name?: string; connected?: boolean }>;
+      const detail = customEvent.detail;
       if (detail) {
         setPrinterInfo({
           name: detail.name || 'Printer Bluetooth',
@@ -459,8 +506,9 @@ export function BarcodeConfigView({
       }
     };
 
-    const handlePaperDetected = (e: any) => {
-      const paper = e.detail;
+    const handlePaperDetected = (e: Event) => {
+      const customEvent = e as CustomEvent<{ widthMm: number; heightMm: number; columns: number; presetId?: string }>;
+      const paper = customEvent.detail;
       if (paper) {
         applyAutoSyncAndFix(paper.widthMm, paper.heightMm, paper.columns, paper.presetId);
         toast.success(`⚡ Printer & Kertas Terdeteksi Otomatis: ${paper.widthMm}×${paper.heightMm}mm (${paper.columns} Kolom)`);
@@ -473,7 +521,7 @@ export function BarcodeConfigView({
     // Auto-reconnect silently if previously paired
     autoConnectBluetoothPrinter().then((reconnected) => {
       if (reconnected) {
-        const name = getConnectedBluetoothPrinterName();
+        const name = getConnectedBluetoothLabelPrinterName() || getConnectedBluetoothPrinterName();
         setPrinterInfo({
           name: name || 'Printer Bluetooth',
           type: 'bluetooth',
@@ -505,8 +553,9 @@ export function BarcodeConfigView({
       } else {
         toast.info(res.message);
       }
-    } catch (err: any) {
-      toast.error('Gagal memindai Bluetooth: ' + (err?.message || 'Pastikan Bluetooth aktif'));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Pastikan Bluetooth aktif';
+      toast.error('Gagal memindai Bluetooth: ' + msg);
     } finally {
       setIsScanning(false);
     }
@@ -527,8 +576,9 @@ export function BarcodeConfigView({
       } else {
         toast.info(res.message);
       }
-    } catch (err: any) {
-      toast.error('Gagal memindai USB: ' + (err?.message || 'Periksa kabel USB'));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Periksa kabel USB';
+      toast.error('Gagal memindai USB: ' + msg);
     } finally {
       setIsScanning(false);
     }
@@ -549,8 +599,9 @@ export function BarcodeConfigView({
       } else {
         toast.info(res.message);
       }
-    } catch (err: any) {
-      toast.error('Gagal membuka Port Serial: ' + (err?.message || 'Periksa Port COM'));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Periksa Port COM';
+      toast.error('Gagal membuka Port Serial: ' + msg);
     } finally {
       setIsScanning(false);
     }
@@ -568,8 +619,10 @@ export function BarcodeConfigView({
   };
 
   // 4. Products Queue for Printing (NO DUMMY DATA)
+  const hasAutoPopulatedRef = useRef<boolean>(false);
   const [productsToPrint, setProductsToPrint] = useState<LabelProductData[]>(() => {
     if (initialProducts && initialProducts.length > 0) {
+      hasAutoPopulatedRef.current = true;
       return initialProducts.map((p) => ({
         ...p,
         storeName: p.storeName || activeStoreDisplayName,
@@ -577,16 +630,20 @@ export function BarcodeConfigView({
       }));
     }
     if (initialProduct) {
+      hasAutoPopulatedRef.current = true;
       return [{ ...initialProduct, storeName: initialProduct.storeName || activeStoreDisplayName, copies: 1 }];
     }
     if (state.products && state.products.length > 0) {
+      hasAutoPopulatedRef.current = true;
       return state.products.slice(0, 3).map((p) => ({
         id: p.id,
         name: p.name,
         price: p.price,
         barcode: p.barcode || p.sku || '000000',
         sku: p.sku || '',
-        category: p.category,
+        category: p.category || '',
+        subCategory: p.subCategory || p.sub_category || '',
+        brand: p.brand || '',
         storeName: activeStoreDisplayName,
         copies: 1,
       }));
@@ -594,9 +651,11 @@ export function BarcodeConfigView({
     return [];
   });
 
-  // Populate queue once products load if empty
+  // Populate queue once products load for the first time if initially empty
   useEffect(() => {
+    if (hasAutoPopulatedRef.current) return;
     if (productsToPrint.length === 0 && state.products && state.products.length > 0 && !initialProduct && !initialProducts) {
+      hasAutoPopulatedRef.current = true;
       setProductsToPrint(
         state.products.slice(0, 3).map((p) => ({
           id: p.id,
@@ -604,13 +663,17 @@ export function BarcodeConfigView({
           price: p.price,
           barcode: p.barcode || p.sku || '000000',
           sku: p.sku || '',
-          category: p.category,
+          category: p.category || '',
+          subCategory: p.subCategory || p.sub_category || '',
+          brand: p.brand || '',
           storeName: activeStoreDisplayName,
           copies: 1,
         }))
       );
+    } else if (productsToPrint.length > 0) {
+      hasAutoPopulatedRef.current = true;
     }
-  }, [state.products, initialProduct, initialProducts, activeStoreDisplayName]);
+  }, [state.products, initialProduct, initialProducts, activeStoreDisplayName, productsToPrint.length]);
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isPrinting, setIsPrinting] = useState<boolean>(false);
@@ -659,9 +722,9 @@ export function BarcodeConfigView({
     setOptions((prev) => {
       const next = { ...prev };
       TEXT_ELEMENT_FONT_CONFIGS.forEach((item) => {
-        const current = (next[item.field] as number) ?? item.fallback;
+        const current = (next[item.field] as number | undefined) ?? item.fallback;
         const clamped = Math.max(item.min, Math.min(item.max, Number((current + delta).toFixed(1))));
-        (next as any)[item.field] = clamped;
+        (next as Record<keyof LabelPrintOptions, unknown>)[item.field] = clamped;
       });
       return next;
     });
@@ -715,7 +778,7 @@ export function BarcodeConfigView({
 
   const toggleElementEnabled = useCallback((key: LabelElementKey) => {
     setOptions((prev) => {
-      let next = { ...prev };
+      const next = { ...prev };
       switch (key) {
         case 'storeName':
           next.showStoreName = !prev.showStoreName;
@@ -768,7 +831,9 @@ export function BarcodeConfigView({
 
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
-    } catch (_) {}
+    } catch (err) {
+      console.debug('Pointer capture error:', err);
+    }
   }, [options.elementPositions]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -810,7 +875,9 @@ export function BarcodeConfigView({
     if (dragRef.current && dragRef.current.pointerId === e.pointerId) {
       try {
         e.currentTarget.releasePointerCapture(e.pointerId);
-      } catch (_) {}
+      } catch (err) {
+        console.debug('Release pointer capture error:', err);
+      }
       dragRef.current = null;
       setIsDragging(false);
       setOptions((prev) => {
@@ -932,11 +999,13 @@ export function BarcodeConfigView({
       // 1. Simpan ke LocalStorage langsung (instant)
       saveLabelOptions(options);
 
-      // 2. Simpan ke Database Server (Cloud Sync) jika terhubung ke akun
+      // 2. Simpan ke Database Server (Cloud Sync) melalui saveSettings AppContext
+      // Ini memastikan business_name, tax_rate, dll tidak ter-reset ke default
       if (state.settings) {
-        await api.put('/settings', {
+        await saveSettings({
           ...state.settings,
           barcode_settings: JSON.stringify(options),
+          barcodeSettings: JSON.stringify(options),
         });
       }
 
@@ -944,7 +1013,7 @@ export function BarcodeConfigView({
       toast.success('Pengaturan barcode berhasil disimpan!', {
         description: 'Ukuran kertas stiker, layout, posisi, dan format cetak akan otomatis aktif setiap kali aplikasi dibuka.',
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.warn('Gagal menyimpan ke server, tersimpan di lokal:', err);
       saveLabelOptions(options);
       setSaveStatus('saved');
@@ -964,9 +1033,10 @@ export function BarcodeConfigView({
       setCustomCols(standard.columns);
       saveLabelOptions(standard);
       if (state.settings) {
-        api.put('/settings', {
+        saveSettings({
           ...state.settings,
           barcode_settings: JSON.stringify(standard),
+          barcodeSettings: JSON.stringify(standard),
         }).catch(() => {});
       }
       toast.info('Pengaturan stiker dikembalikan ke standar pabrik (33x15 mm)');
@@ -1029,9 +1099,10 @@ export function BarcodeConfigView({
         toast.warning('Printer Bluetooth belum merespons. Beralih ke dialog cetak browser (PDF)...', { id: toastId });
         triggerBrowserLabelPrint(preparedList, printOptions);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Print Bluetooth error:', err);
-      toast.error('Gagal cetak Bluetooth: ' + (err?.message || 'Beralih ke browser'), { id: toastId });
+      const msg = err instanceof Error ? err.message : 'Beralih ke browser';
+      toast.error('Gagal cetak Bluetooth: ' + msg, { id: toastId });
       const printOptions: LabelPrintOptions = {
         ...options,
         customStoreName: activeStoreDisplayName,
@@ -1066,12 +1137,13 @@ export function BarcodeConfigView({
   };
 
   // Add product from search
-  const handleAddProduct = (prod: any) => {
+  const handleAddProduct = (prod: Product | LabelProductData) => {
     setProductsToPrint((prev) => {
       const existing = prev.find((p) => p.id === prod.id);
       if (existing) {
         return prev.map((p) => (p.id === prod.id ? { ...p, copies: (p.copies || 1) + 1 } : p));
       }
+      const subCat = 'subCategory' in prod && prod.subCategory ? prod.subCategory : ('sub_category' in prod && prod.sub_category ? prod.sub_category : '');
       return [
         ...prev,
         {
@@ -1081,7 +1153,7 @@ export function BarcodeConfigView({
           barcode: prod.barcode || prod.sku || '000000',
           sku: prod.sku || '',
           category: prod.category || '',
-          subCategory: (prod as any).subCategory || (prod as any).sub_category || '',
+          subCategory: subCat,
           brand: prod.brand || '',
           storeName: activeStoreDisplayName,
           copies: 1,
@@ -1160,7 +1232,7 @@ export function BarcodeConfigView({
         barcode: p.barcode || p.sku || '000000',
         sku: p.sku || '',
         category: p.category || 'Herbal Alami',
-        subCategory: (p as any).subCategory || (p as any).sub_category || 'Kapsul Herbal',
+        subCategory: p.subCategory || p.sub_category || 'Kapsul Herbal',
         brand: p.brand || 'Ryo Store',
         storeName: activeStoreDisplayName,
         copies: 1,
@@ -1987,7 +2059,7 @@ export function BarcodeConfigView({
                                 <span className="text-[10.5px] text-muted-foreground">Format:</span>
                                 <select
                                   value={options.barcodeType || 'CODE128'}
-                                  onChange={(e) => setOptions((prev) => ({ ...prev, barcodeType: e.target.value as any }))}
+                                  onChange={(e) => setOptions((prev) => ({ ...prev, barcodeType: e.target.value as LabelPrintOptions['barcodeType'] }))}
                                   className="h-6 text-[10.5px] rounded border bg-background px-1 font-mono font-bold"
                                 >
                                   <option value="CODE128">CODE128</option>
@@ -2232,7 +2304,7 @@ export function BarcodeConfigView({
                       <Label className="text-xs font-semibold text-foreground">Ketebalan Huruf:</Label>
                       <select
                         value={options.fontWeight || '800'}
-                        onChange={(e) => setOptions((prev) => ({ ...prev, fontWeight: e.target.value as any }))}
+                        onChange={(e) => setOptions((prev) => ({ ...prev, fontWeight: e.target.value as LabelPrintOptions['fontWeight'] }))}
                         className="w-full h-8 text-xs rounded-lg border bg-background px-2.5 font-medium text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
                       >
                         <option value="normal">Normal (400)</option>
